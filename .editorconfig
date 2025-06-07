@@ -1,0 +1,31 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{js,mjs,jsx,ts,tsx,ts}]
+indent_size = 2
+
+[*.{lua,p8}]
+indent_size = 1
+
+[*.{pl,pm,t,html.ep}]
+indent_size = 2
+
+[*.{json,jsonc}]
+indent_size = 2
+insert_final_newline = false
+
+[*.{html,htm,xml,yaml,yml}]
+indent_size = 2
+
+[*.{css,scss}]
+indent_size = 2
