@@ -1,7 +1,10 @@
 """Hellish Quart 対戦動画タイムスタンプ抽出ツール
 """
+import os
 import sys
+import re
 import time
+from tkinter import filedialog
 import FreeSimpleGUI as sg
 from constants import CONSTANTS as C
 import utils as u
