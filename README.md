@@ -2,6 +2,10 @@
 
 ## 概要 
 
+## セットアップ
+
+`git clone`の後、`python -m pip install -r requirements.txt`でモジュールをインストールする。
+
 ## 実行方法
 
 ### 1. 動画ファイル選択
