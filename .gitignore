@@ -7,3 +7,4 @@ dist/
 *.spec
 *.code-workspace
 *.mkv
+*timestamps\.txt

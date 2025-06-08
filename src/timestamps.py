@@ -2,12 +2,12 @@
 """
 import os
 import sys
-import re
 import time
 from tkinter import filedialog
 import FreeSimpleGUI as sg
 from constants import CONSTANTS as C
-import utils as u
+from char_names import CharNames
+from timestamps_output import TimestampsOutput
 
 def main():
     """メイン関数
@@ -21,8 +21,8 @@ def main():
     }
 
     # キャラクター名画像を取得
-    data['names_l'], data['imgs_l'] = u.get_char_name(C.CHAR_LEFT_DIR)
-    data['names_r'], data['imgs_r'] = u.get_char_name(C.CHAR_RIGHT_DIR)
+    char_names_l = CharNames(C.CHAR_LEFT_DIR)
+    char_names_r = CharNames(C.CHAR_LEFT_DIR)
 
     # 動画ファイルのパスを取得
     file_path = get_file_path()
@@ -30,16 +30,17 @@ def main():
         print('ファイルが選択されていません。')
         sys.exit()
 
-    print(f'選択されたファイル: `{file_path}`')
+    print(f'選択されたファイル: {file_path}')
 
     # ウィンドウの生成
     window = create_window()
 
     # メインループ
     progress_bar = 0
+    timestamps = [] # TODO ダミーの出力データ
     while True:
         # TODO ここからダミータスク>>>
-        time.sleep(0.1)
+        time.sleep(0.001)
 
         # TODO ここではダミータスクとして、プログレスバーを100まで増加させる
 
@@ -66,6 +67,9 @@ def main():
     else:
         # 終了処理
         print('解析完了。')
+
+        output = TimestampsOutput()
+        output.write(timestamps)
         print('タイムスタンプをファイルに書き込みました。')
 
     # コンソールウィンドウを見やすくするための待機
@@ -117,7 +121,7 @@ def get_file_path():
     file_path = filedialog.askopenfilename(
         initialdir=exe_dir,
         title='動画ファイルを選択',
-        filetypes=[('MKVファイル', '*.mkv'), ('すべてのファイル', '*.*')],
+        filetypes=[('すべてのファイル', '*.*')],
     )
 
     return file_path
