@@ -8,6 +8,7 @@ import FreeSimpleGUI as sg
 from constants import CONSTANTS as C
 from char_names import CharNames
 from timestamps_output import TimestampsOutput
+import cv2
 
 
 def main():
@@ -32,6 +33,30 @@ def main():
         sys.exit()
 
     print(f'選択されたファイル: {file_path}')
+
+    # 動画ファイルかを判定
+    try:
+        cap = cv2.VideoCapture(file_path)
+        if not cap.isOpened():
+            print('動画ファイルを選択してください。')
+            sys.exit()
+        # 動画のフレーム数を取得
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        print(f'動画ファイルのフレーム数: {frame_count}')
+        # フレーム数が1以下のもの（静止画像など）はエラーとする
+        if frame_count <= 1:
+            cap.release()
+            print('動画ファイルを選択してください。')
+            sys.exit()
+    except Exception:
+        cap.release()
+        print('例外が発生しました。')
+        sys.exit()
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f'動画ファイルのFPS: {fps}')
+    cap.release()
+
 
     # ウィンドウの生成
     window = create_window()
