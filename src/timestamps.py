@@ -9,6 +9,7 @@ from constants import CONSTANTS as C
 from char_names import CharNames
 from timestamps_output import TimestampsOutput
 
+
 def main():
     """メイン関数
     """
@@ -22,7 +23,7 @@ def main():
 
     # キャラクター名画像を取得
     char_names_l = CharNames(C.CHAR_LEFT_DIR)
-    char_names_r = CharNames(C.CHAR_LEFT_DIR)
+    char_names_r = CharNames(C.CHAR_RIGHT_DIR)
 
     # 動画ファイルのパスを取得
     file_path = get_file_path()
