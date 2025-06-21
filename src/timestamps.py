@@ -47,22 +47,30 @@ def main():
         sys.exit()
 
     print(f'動画のフレームレート: {analyze.get_fps()}')
+    print(f'動画のフレーム数: {analyze.get_totalframes()}')
 
     # ウィンドウの生成
     window = create_window()
 
     # メインループ
     progress_bar = 0
+    totalframes = analyze.get_totalframes()
     timestamps = [] # TODO ダミーの出力データ
     while True:
         # TODO ここからダミータスク>>>
-        time.sleep(0.001)
+        # time.sleep(0.001)
+
+        ret, frame_no = analyze.get_frame_next()
+        if not ret:
+            break
 
         # TODO ここではダミータスクとして、プログレスバーを100まで増加させる
-
         # プログレスバーの増加
-        progress_bar += 1
+        # progress_bar += 1
         # TODO <<<ここまでダミータスク
+
+        print(f'現在のフレーム: {frame_no}')
+        progress_bar = int( frame_no / totalframes * C.BAR_MAX )
 
         # キャンセルまたはウィンドウクローズでループ終了
         event, _ = window.read(timeout=100)
@@ -74,10 +82,11 @@ def main():
             window[C.BAR_KEY].update(progress_bar)
             window.refresh()
 
-        # プログレスバーの真直が100以上ならループ終了
+        # プログレスバーの進捗が100以上ならループ終了
         if 100 <= progress_bar:
             break
 
+    # ループ終了後処理
     if progress_bar < 100:
         print('キャンセルされました。')
     else:

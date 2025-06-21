@@ -1,4 +1,5 @@
 import cv2
+#from constants import CONSTANTS as C
 
 
 class AnalyzeVideo:
@@ -12,10 +13,12 @@ class AnalyzeVideo:
         """
         self.capture = None
         self.fps = 0.0
+        self.totalframes = 0
+        self.frame = None
+        self.frame_no = 0
 
     def file_open(self, file):
         """動画ファイルを開く
-
         Args:
             file (str): 動画ファイルのパス
 
@@ -27,10 +30,13 @@ class AnalyzeVideo:
             return False
 
         # 動画のフレーム数を取得
-        self.fps = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.totalframes = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # 動画のフレームレートを取得
+        self.fps = self.capture.get(cv2.CAP_PROP_FPS)
 
         # フレーム数が1以下のもの（静止画像など）はエラーとする
-        if self.fps <= 1:
+        if self.totalframes <= 1:
             return False
 
         return True
@@ -49,3 +55,25 @@ class AnalyzeVideo:
             float: 動画のフレームレート
         """
         return self.fps
+
+    def get_frame_next(self):
+        """動画を次のフレームに進める
+
+        Returns:
+            bool: 次のフレームに進められればTrue、そうでなければ（動画終了ならば）False
+            int: 次のフレーム番号
+        """
+        ret, self.frame = self.capture.read()
+        #self.frame = cv2.resize(frame, (640, 360))
+
+        self.frame_no += 1
+        return ret, self.frame_no
+
+    def get_totalframes(self):
+        """動画のフレーム数を取得
+
+        Returns:
+            int: 動画のフレーム数
+        """
+        return self.totalframes
+
