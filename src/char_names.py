@@ -13,6 +13,7 @@ class CharNames:
         images (list): キャラクター名画像のリスト
     """
 
+
     def __init__(self, image_dir: str):
         """コンストラクタ
 
@@ -21,6 +22,7 @@ class CharNames:
         """
         self.names = []
         self.images = []
+
 
         # ディレクトリ内のファイルを取得
         for file in os.listdir(image_dir):

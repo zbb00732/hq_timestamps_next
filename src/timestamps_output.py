@@ -8,6 +8,7 @@ class TimestampsOutput:
     """タイムスタンプ出力クラス
     """
 
+
     def __init__(self):
         """コンストラクタ
         """

@@ -9,22 +9,18 @@ from constants import CONSTANTS as C
 from char_names import CharNames
 from timestamps_output import TimestampsOutput
 from analyze_video import AnalyzeVideo
+from analyzed_video_data import AnalyzedVideoData
 
 
 def main():
     """メイン関数
     """
 
-    data = {
-        'names_l': [],
-        'imgs_l': [],
-        'names_r': [],
-        'imgs_r': [],
-    }
+    video_data = AnalyzedVideoData()
 
     # キャラクター名画像を取得
-    char_names_l = CharNames(C.CHAR_LEFT_DIR)
-    char_names_r = CharNames(C.CHAR_RIGHT_DIR)
+    video_data.char_names_l = CharNames(C.CHAR_LEFT_DIR)
+    video_data.char_names_r = CharNames(C.CHAR_RIGHT_DIR)
 
     # 動画ファイルのパスを取得
     file_path = get_file_path()
@@ -46,55 +42,45 @@ def main():
         print('例外が発生しました。')
         sys.exit()
 
-    print(f'動画のフレームレート: {analyze.get_fps()}')
-    print(f'動画のフレーム数: {analyze.get_totalframes()}')
+    video_data.fps = analyze.get_fps()
+    print(f'動画のフレームレート: {video_data.fps}')
+
+    video_data.totalframes = analyze.get_totalframes()
+    print(f'動画の総フレーム数: {video_data.totalframes}')
 
     # ウィンドウの生成
     window = create_window()
 
     # メインループ
-    progress_bar = 0
-    totalframes = analyze.get_totalframes()
-    timestamps = [] # TODO ダミーの出力データ
     while True:
-        # TODO ここからダミータスク>>>
-        # time.sleep(0.001)
-
+        # フレームの解析
         ret, frame_no = analyze.get_frame_next()
         if not ret:
             break
 
-        # TODO ここではダミータスクとして、プログレスバーを100まで増加させる
-        # プログレスバーの増加
-        # progress_bar += 1
-        # TODO <<<ここまでダミータスク
-
-        print(f'現在のフレーム: {frame_no}')
-        progress_bar = int( frame_no / totalframes * C.BAR_MAX )
-
         # キャンセルまたはウィンドウクローズでループ終了
         event, _ = window.read(timeout=100)
         if event in (C.CANCEL_KEY, sg.WIN_CLOSED):
+            # キャンセルフラグ
+            video_data.is_cancel = True
             break
 
         # プログレスバーの更新
         if event not in (C.CANCEL_KEY, sg.WIN_CLOSED):
+            print(f'現在のフレーム: {frame_no} / {video_data.totalframes}')
+            progress_bar = int(frame_no / video_data.totalframes * C.BAR_MAX)
             window[C.BAR_KEY].update(progress_bar)
             window.refresh()
 
-        # プログレスバーの進捗が100以上ならループ終了
-        if 100 <= progress_bar:
-            break
-
     # ループ終了後処理
-    if progress_bar < 100:
+    if video_data.is_cancel:
         print('キャンセルされました。')
     else:
         # 終了処理
         print('解析完了。')
 
         output = TimestampsOutput()
-        output.write(timestamps)
+        output.write(video_data.timestamps_text)
         print('タイムスタンプをファイルに書き込みました。')
 
     # コンソールウィンドウを見やすくするための待機

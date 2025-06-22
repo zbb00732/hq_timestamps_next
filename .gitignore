@@ -6,6 +6,7 @@ dist/
 *.egg-info/
 *.spec
 *.code-workspace
+*.mp4
 *.mkv
 *.jpg
 *.jpeg
