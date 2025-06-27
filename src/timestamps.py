@@ -67,10 +67,21 @@ def main():
 
         # プログレスバーの更新
         if event not in (C.CANCEL_KEY, sg.WIN_CLOSED):
-            print(f'現在のフレーム: {frame_no} / {video_data.totalframes}')
+            #print(f'現在のフレーム: {frame_no} / {video_data.totalframes}')
             progress_bar = int(frame_no / video_data.totalframes * C.BAR_MAX)
             window[C.BAR_KEY].update(progress_bar)
             window.refresh()
+
+        # 現在のステータス（どの画面か）を取得
+        status = analyze.get_status()
+        if status == 'charaselect':
+            print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :キャラセレクト画面')
+        elif status == 'arenaselect':
+            print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :マップ選択画面')
+        #else:
+        #    print(f'現在のフレーム: {frame_no} / {video_data.totalframes}')
+        #    continue
+
 
     # ループ終了後処理
     if video_data.is_cancel:
