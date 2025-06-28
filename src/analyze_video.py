@@ -1,5 +1,5 @@
 import cv2
-#from constants import CONSTANTS as C
+#from constants import Constants as C
 from analyzed_video_data import AnalyzedVideoData
 
 

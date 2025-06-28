@@ -2,7 +2,7 @@
 """
 import os
 import datetime
-from constants import CONSTANTS as C
+from constants import Constants as C
 
 class TimestampsOutput:
     """タイムスタンプ出力クラス

@@ -8,5 +8,6 @@ class AnalyzedVideoData:
         self.totalframes: int = 0
         self.char_names_l = None
         self.char_names_r = None
+        self.match_template = None
         self.timestamps_text: list[str] = []
         self.is_cancel: bool = False

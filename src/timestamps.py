@@ -5,8 +5,9 @@ import sys
 import time
 from tkinter import filedialog
 import FreeSimpleGUI as sg
-from constants import CONSTANTS as C
+from constants import Constants as C
 from char_names import CharNames
+from match_template import MatchTemplate
 from timestamps_output import TimestampsOutput
 from analyze_video import AnalyzeVideo
 from analyzed_video_data import AnalyzedVideoData
@@ -19,8 +20,9 @@ def main():
     video_data = AnalyzedVideoData()
 
     # キャラクター名画像を取得
-    video_data.char_names_l = CharNames(C.CHAR_LEFT_DIR)
-    video_data.char_names_r = CharNames(C.CHAR_RIGHT_DIR)
+    video_data.char_names_l = CharNames(C.CHAR.LEFT_DIR)
+    video_data.char_names_r = CharNames(C.CHAR.RIGHT_DIR)
+    video_data.match_template = MatchTemplate()
 
     # 動画ファイルのパスを取得
     file_path = get_file_path()
@@ -67,8 +69,8 @@ def main():
 
         # プログレスバーの更新
         if event not in (C.CANCEL_KEY, sg.WIN_CLOSED):
-            progress_bar = int(frame_no / video_data.totalframes * C.BAR_MAX)
-            window[C.BAR_KEY].update(progress_bar)
+            progress_bar = int(frame_no / video_data.totalframes * C.BAR.MAX)
+            window[C.BAR.KEY].update(progress_bar)
             window.refresh()
 
         # 現在のステータス（どの画面か）を取得
@@ -105,24 +107,24 @@ def create_window():
         sg.Window: ウィンドウオブジェクト
     """
 
-    sg.theme(C.WINDOW_THEME)
+    sg.theme(C.WINDOW.THEME)
 
     # GUIレイアウト
     #   1行目: テキスト
     #   2行目: プログレスバー
     #   3段目: キャンセルボタン
     layout = [
-        [sg.Text(C.WINDOW_TEXT)],
+        [sg.Text(C.WINDOW.TEXT)],
         [sg.ProgressBar(
-            C.BAR_MAX,
-            orientation=C.BAR_ORIENTATION,
-            size=(C.BAR_WIDTH, C.BAR_HEIGHT),
-            key=C.BAR_KEY,
+            C.BAR.MAX,
+            orientation=C.BAR.ORIENTATION,
+            size=(C.BAR.WIDTH, C.BAR.HEIGHT),
+            key=C.BAR.KEY,
         )],
         [sg.Button(C.ONCLICK_CANCEL, key=C.CANCEL_KEY)],
     ]
 
-    return sg.Window(C.WINDOW_TITLE, layout, finalize=True)
+    return sg.Window(C.WINDOW.TITLE, layout, finalize=True)
 
 
 def get_file_path():
