@@ -31,7 +31,7 @@ def main():
     print(f'選択されたファイル: {file_path}')
 
     # 動画ファイルかを判定
-    analyze = AnalyzeVideo()
+    analyze = AnalyzeVideo(video_data)
     try:
         result = analyze.file_open(file_path)
         if result is False:
@@ -67,7 +67,6 @@ def main():
 
         # プログレスバーの更新
         if event not in (C.CANCEL_KEY, sg.WIN_CLOSED):
-            #print(f'現在のフレーム: {frame_no} / {video_data.totalframes}')
             progress_bar = int(frame_no / video_data.totalframes * C.BAR_MAX)
             window[C.BAR_KEY].update(progress_bar)
             window.refresh()
@@ -80,8 +79,6 @@ def main():
             print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :マップ選択画面')
         #else:
         #    print(f'現在のフレーム: {frame_no} / {video_data.totalframes}')
-        #    continue
-
 
     # ループ終了後処理
     if video_data.is_cancel:

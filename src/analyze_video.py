@@ -1,5 +1,6 @@
 import cv2
 #from constants import CONSTANTS as C
+from analyzed_video_data import AnalyzedVideoData
 
 
 class AnalyzeVideo:
@@ -12,7 +13,7 @@ class AnalyzeVideo:
         frame_no (int): 現在のフレーム番号
     """
 
-    def __init__(self):
+    def __init__(self, video_data: AnalyzedVideoData):
         """コンストラクタ
         """
         self.capture = None
