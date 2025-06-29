@@ -54,7 +54,7 @@ def main():
     window = create_window()
 
     # 現在のフレーム番号
-    frame_no = 0
+    frame_no = 1000
 
     # メインループ
     while True:
@@ -83,7 +83,9 @@ def main():
         # 現在のステータス（どの画面か）を取得
         status = analyze.get_status()
         if status == 'charaselect':
-            print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :キャラセレクト画面')
+            name_l = analyze.get_charaname(True,  video_data.char_names_l)
+            name_r = analyze.get_charaname(False, video_data.char_names_r)
+            print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :キャラセレクト画面 Left: {name_l}, Right: {name_r}')
         elif status == 'arenaselect':
             print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :マップ選択画面')
         #else:

@@ -29,11 +29,11 @@ class CharNames:
             # キャラクター名画像の拡張子が一致する場合
             if file.endswith(C.CHAR.IMG_EXT):
                 # 画像を読み込み
-                image = cv2.imread(os.path.join(image_dir, file))
+                image = cv2.imread(os.path.join(image_dir, file), cv2.IMREAD_GRAYSCALE)
                 if image is not None:
                     self.images.append(image)
 
-            file = file.replace(C.CHAR.IMG_EXT, '')
-            file = file.replace(C.CHAR.L_PRE, '')
-            file = file.replace(C.CHAR.R_PRE, '')
-            self.names.append(file)
+                    file = file.replace(C.CHAR.IMG_EXT, '')
+                    file = file.replace(C.CHAR.L_PRE, '')
+                    file = file.replace(C.CHAR.R_PRE, '')
+                    self.names.append(file)

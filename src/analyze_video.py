@@ -23,13 +23,13 @@ class AnalyzeVideo:
         self.frame_no = 0
 
         # 検出する画像の読み込み
-        self.img_blackout    = cv2.imread('matchtemplate/black.png', 1)
-        self.img_loadscreen  = cv2.imread('matchtemplate/load.png', 0)
-        self.img_charaselect = cv2.imread('matchtemplate/charaselect.png', 0)
-        self.img_arenaselect = cv2.imread('matchtemplate/arenaselect.png', 0)
+        self.img_blackout    = cv2.imread('matchtemplate/black.png', cv2.IMREAD_COLOR)
+        self.img_loadscreen  = cv2.imread('matchtemplate/load.png', cv2.IMREAD_GRAYSCALE)
+        self.img_charaselect = cv2.imread('matchtemplate/charaselect.png', cv2.IMREAD_GRAYSCALE)
+        self.img_arenaselect = cv2.imread('matchtemplate/arenaselect.png', cv2.IMREAD_GRAYSCALE)
 
 
-    def file_open(self, file):
+    def file_open(self, file: str):
         """動画ファイルを開く
         Args:
             file (str): 動画ファイルのパス
@@ -71,24 +71,7 @@ class AnalyzeVideo:
         return self.fps
 
 
-    def get_frame_next(self):
-        """動画を次のフレームに進める
-
-        Returns:
-            bool: 次のフレームに進められればTrue、そうでなければ（動画終了ならば）False
-            int: 次のフレーム番号
-        """
-        ret, frame_orig = self.capture.read()
-        if ret:
-            frame_resized = cv2.resize(frame_orig, (640, 360))
-            frame_gray    = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2GRAY)
-            self.frame = frame_gray
-
-        self.frame_no += 1
-        return ret, self.frame_no
-
-
-    def set_frame(self, frame_no):
+    def set_frame(self, frame_no: int):
         """動画内の指定したフレーム番号に飛ぶ
 
         Args:
@@ -104,8 +87,8 @@ class AnalyzeVideo:
         ret, frame_orig = self.capture.read()
         if ret:
             frame_resized = cv2.resize(frame_orig, (640, 360))
-            frame_gray    = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2GRAY)
-            self.frame = frame_gray
+#            frame_gray    = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2GRAY)
+            self.frame = frame_resized
             self.frame_no = frame_no
 
         return ret
@@ -120,19 +103,29 @@ class AnalyzeVideo:
         return self.totalframes
 
 
-    def is_matchimage(self, image):
-        """現在のフレームが、引数で指定した画像とマッチするかを判定
+    def is_matchimage(self, image, area=(0, 0, 640, 360), color=cv2.IMREAD_GRAYSCALE, threshold=0.7):
+        """現在のフレーム内で、指定した範囲が、指定した画像とマッチするかを判定
 
         Args:
             image (ndarray): 画像（cv2.imread()で読み込んだオブジェクト）
+            area (tuple): 範囲（ (x, y, w, h) 左上の座標,幅,高さ）。フレーム全体の大きさは(640×360)とする
+                          cv2.matchTemplate の性質上、image よりも少し大きめに指定するとよい
+            color (int): 0(cv2.IMREAD_GRAYSCALE):グレースケール、1(cv2.IMREAD_COLOR):カラー
+            threshold (float): 閾値
 
         Returns:
-            bool: キャラクタセレクト画面ならばTrue
+            bool: マッチしていればTrue
         """
-        result1 = cv2.matchTemplate(self.frame, image, cv2.TM_CCOEFF_NORMED)
+        x, y, w, h = area
+        frame = self.frame[y:y+h, x:x+w]
+
+        if color == cv2.IMREAD_GRAYSCALE:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        result1 = cv2.matchTemplate(frame, image, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result1)
-        # 信頼度最大値（max_val）が 0.7 より大きければマッチしたとみなす
-        if max_val > 0.7:
+        # 信頼度最大値（max_val）が threshold より大きければマッチしたとみなす
+        if max_val > threshold:
             return True
 
         return False
@@ -151,3 +144,30 @@ class AnalyzeVideo:
             return 'arenaselect'
 
         return 'nomatch'
+
+
+    def get_charaname(self, left, charnames):
+        """現在のフレーム内で表示されているキャラクター名を取得
+
+        Args:
+            left (bool): 左（True）、右（False）
+            charnames (CharNames): キャラクター名およびキャラクター名画像のリスト
+
+        Returns:
+            str: キャラクター名文字列
+        """
+        # キャラクター名画像をマッチさせる範囲(x, y, w, h)
+        if left:
+            area = ( 29, 24, 122, 27)
+        else:
+            area = (499, 24, 122, 27)
+
+        name = 'nomatch'
+
+        # 信頼度最大値（max_val）が 0.9 より大きければマッチしたとみなす
+        for nm, img in zip(charnames.names, charnames.images):
+            if self.is_matchimage(img, area, cv2.IMREAD_GRAYSCALE, 0.9):
+                name = nm
+                break
+
+        return name
