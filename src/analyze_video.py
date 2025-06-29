@@ -79,12 +79,36 @@ class AnalyzeVideo:
             int: 次のフレーム番号
         """
         ret, frame_orig = self.capture.read()
-        frame_resized = cv2.resize(frame_orig, (640, 360))
-        frame_gray    = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2GRAY)
-        self.frame = frame_gray
+        if ret:
+            frame_resized = cv2.resize(frame_orig, (640, 360))
+            frame_gray    = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2GRAY)
+            self.frame = frame_gray
 
         self.frame_no += 1
         return ret, self.frame_no
+
+
+    def set_frame(self, frame_no):
+        """動画内の指定したフレーム番号に飛ぶ
+
+        Args:
+            frame_no (int): フレーム番号
+
+        Returns:
+            bool: 指定したフレームに飛べればTrue、そうでなければFalse
+        """
+        # 指定したフレーム位置に移動
+        self.capture.set(cv2.CAP_PROP_POS_FRAMES, frame_no)
+
+        # フレームを1枚読み込み
+        ret, frame_orig = self.capture.read()
+        if ret:
+            frame_resized = cv2.resize(frame_orig, (640, 360))
+            frame_gray    = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2GRAY)
+            self.frame = frame_gray
+            self.frame_no = frame_no
+
+        return ret
 
 
     def get_totalframes(self):

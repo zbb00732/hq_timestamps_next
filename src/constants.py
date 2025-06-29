@@ -63,3 +63,5 @@ class Constants:
 
     OUTPUT_FILE = 'timestamps.txt' # タイムスタンプ出力ファイル名
     OUTPUT_ENCODING = 'utf-8'      # 出力ファイルのエンコーディング
+
+    SKIP = 4                       # 指定のフレームおきに処理をスキップ

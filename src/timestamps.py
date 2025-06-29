@@ -53,10 +53,17 @@ def main():
     # ウィンドウの生成
     window = create_window()
 
+    # 現在のフレーム番号
+    frame_no = 0
+
     # メインループ
     while True:
-        # フレームの解析
-        ret, frame_no = analyze.get_frame_next()
+        frame_no += 1
+        if ( frame_no % C.SKIP ) != 0:
+            continue
+
+        # 指定したフレーム番号に飛ぶ
+        ret = analyze.set_frame(frame_no)
         if not ret:
             break
 
