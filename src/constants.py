@@ -39,9 +39,9 @@ class MatchTemplate:
     """ロード画面など画像管理定数
     """
     DIR = 'matchtemplate'     # ロード画面などの画像ディレクトリ名
-    BLACK = 'black.png'       # 暗転画面
+    #BLACK = 'black.png'       # 暗転画面
     BLACK_FLG = 1             # 暗転画面読み込みフラグ
-    LOAD = 'load.png'         # ロード画面
+    LOAD = 'loadscreen.png'   # ロード画面
     LOAD_FLG = 0              # ロード画面画像読み込みフラグ
     CHARA = 'charaselect.png' # キャラクター選択画面
     CHARA_FLG = 0             # キャラクター選択画面読み込みフラグ

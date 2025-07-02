@@ -54,7 +54,7 @@ def main():
     window = create_window()
 
     # 現在のフレーム番号
-    frame_no = 1000
+    frame_no = 0
 
     # メインループ
     while True:
@@ -88,6 +88,10 @@ def main():
             print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :キャラセレクト画面 Left: {name_l}, Right: {name_r}')
         elif status == 'arenaselect':
             print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :マップ選択画面')
+        elif status == 'loadscreen':
+            print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :ロード画面')
+        elif status == 'blackout':
+            print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :暗転画面')
         #else:
         #    print(f'現在のフレーム: {frame_no} / {video_data.totalframes}')
 
