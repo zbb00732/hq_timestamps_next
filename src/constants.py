@@ -39,7 +39,6 @@ class MatchTemplate:
     """ロード画面など画像管理定数
     """
     DIR = 'matchtemplate'     # ロード画面などの画像ディレクトリ名
-    #BLACK = 'black.png'       # 暗転画面
     BLACK_FLG = 1             # 暗転画面読み込みフラグ
     LOAD = 'loadscreen.png'   # ロード画面
     LOAD_FLG = 0              # ロード画面画像読み込みフラグ
