@@ -12,7 +12,6 @@ class TimestampsOutput:
     def __init__(self):
         """コンストラクタ
         """
-
         output_dir = datetime.date.today().strftime('%Y%m%d')
         self.output_file = output_dir + C.OUTPUT_FILE
 

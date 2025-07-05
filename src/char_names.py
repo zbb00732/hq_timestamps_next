@@ -23,7 +23,6 @@ class CharNames:
         self.names = []
         self.images = []
 
-
         # ディレクトリ内のファイルを取得
         for file in os.listdir(image_dir):
             # キャラクター名画像の拡張子が一致する場合
