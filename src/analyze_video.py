@@ -20,7 +20,7 @@ class AnalyzeVideo:
     AREA_CHARNAME_L  = ( 29,  24, 122,  27)
     AREA_CHARNAME_R  = (499,  24, 122,  27)
     #AREA_ARENASELECT = (229,   0, 182,  41)
-    #AREA_LOADSCREEN  = (191,  99, 258, 194)
+    AREA_LOADSCREEN  = (191,  99, 258, 194)
     #AREA_CHKBLACKOUT = (160,   0, 320, 180)
 
     AREA_FLAG1L      = ( 30,   6,   6,   6)
@@ -33,8 +33,8 @@ class AnalyzeVideo:
 
     # 赤のHSV範囲（2つの範囲）
     HSV_RANGES_RD = [
-        (np.array([  0,  70,  50]), np.array([ 10, 255, 255])),
-        (np.array([170,  70,  50]), np.array([180, 255, 255]))
+        (np.array([  0, 200,  50]), np.array([ 10, 255, 255])),
+        (np.array([170, 200,  50]), np.array([180, 255, 255]))
     ]
 
 
@@ -48,14 +48,8 @@ class AnalyzeVideo:
         self.frame_no = 0
 
         # 検出する画像の読み込み
-        #self.img_loadscreen  = cv2.imread('matchtemplate/loadscreen.png',  cv2.IMREAD_COLOR)
         self.img_charaselect = cv2.imread('matchtemplate/charaselect.png', cv2.IMREAD_COLOR)
-        #self.img_arenaselect = cv2.imread('matchtemplate/arenaselect.png', cv2.IMREAD_COLOR)
-
-        #self.img_flag_Lw     = cv2.imread('matchtemplate/flag_Lw.png', cv2.IMREAD_COLOR)
-        #self.img_flag_Lr     = cv2.imread('matchtemplate/flag_Lr.png', cv2.IMREAD_COLOR)
-        #self.img_flag_Rw     = cv2.imread('matchtemplate/flag_Rw.png', cv2.IMREAD_COLOR)
-        #self.img_flag_Rr     = cv2.imread('matchtemplate/flag_Rr.png', cv2.IMREAD_COLOR)
+        self.img_loadscreen  = cv2.imread('matchtemplate/loadscreen.png', cv2.IMREAD_COLOR)
 
 
     def file_open(self, file: str):
@@ -116,7 +110,6 @@ class AnalyzeVideo:
         ret, frame_orig = self.capture.read()
         if ret:
             frame_resized = cv2.resize(frame_orig, (640, 360))
-#            frame_gray    = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2GRAY)
             self.frame = frame_resized
             self.frame_no = frame_no
 
@@ -207,21 +200,21 @@ class AnalyzeVideo:
         return 0.0
 
 
-    def is_blackout(self):
-        """現在のフレーム内で、指定した範囲が、暗転しているかを判定
-
-        Returns:
-            bool: 暗転していればTrue
-        """
-        x, y, w, h = self.AREA_CHKBLACKOUT
-        frame_gray = cv2.cvtColor(self.frame[y:y+h, x:x+w], cv2.COLOR_BGR2GRAY)
-        # 指定範囲の平均輝度を取得
-        mean_brightness = cv2.mean(frame_gray)[0]
-        if mean_brightness < 0.1:
-            #print(f'mean_brightness: {mean_brightness}')
-            return True
-
-        return False
+#    def is_blackout(self):
+#        """現在のフレーム内で、指定した範囲が、暗転しているかを判定
+#
+#        Returns:
+#            bool: 暗転していればTrue
+#        """
+#        x, y, w, h = self.AREA_CHKBLACKOUT
+#        frame_gray = cv2.cvtColor(self.frame[y:y+h, x:x+w], cv2.COLOR_BGR2GRAY)
+#        # 指定範囲の平均輝度を取得
+#        mean_brightness = cv2.mean(frame_gray)[0]
+#        if mean_brightness < 0.1:
+#            #print(f'mean_brightness: {mean_brightness}')
+#            return True
+#
+#        return False
 
 
     def is_duringmatch(self):
@@ -270,12 +263,18 @@ class AnalyzeVideo:
         if ret == 1:
             #対戦画面・試合成立前
             return 'duringmatch_invalid'
+
         if ret == 2:
             #対戦画面・試合成立後
             return 'duringmatch_valid'
-        elif self.is_matchimage(self.img_charaselect, self.AREA_CHARASELECT):
+
+        if self.is_matchimage(self.img_charaselect, self.AREA_CHARASELECT):
             #キャラクター選択画面
             return 'charaselect'
+
+        if self.is_matchimage(self.img_loadscreen,  self.AREA_LOADSCREEN):
+            #ロード画面
+            return 'loadscreen'
 
         return 'nomatch'
 
@@ -289,6 +288,7 @@ class AnalyzeVideo:
 
         Returns:
             str: キャラクター名文字列
+            float: 信頼度最大値
         """
         # キャラクター名画像をマッチさせる範囲(x, y, w, h)
         if left:
@@ -299,16 +299,17 @@ class AnalyzeVideo:
         name = 'nomatch'
         max_temp = 0
 
-        # 信頼度最大値（max_val）が 0.9 より大きいもののうち、最大のものを返す
+        # 信頼度最大値（max_val）が 0.6 より大きいもののうち、最大のものを返す
         for nm, img in zip(charnames.names, charnames.images):
             max_val = self.get_maxval(img, area, cv2.IMREAD_GRAYSCALE)
-            if max_val > 0.9:
+            #max_val = self.get_maxval(img, area)
+            if max_val > 0.6:
                 if max_val > max_temp:
                     max_temp = max_val
                     name = nm
 
-        #print(f'max_temp: {max_temp}')
-        return name
+        return name, max_temp
+
 
     def get_charanames(self, fno_eofcharasel, charnames_L, charnames_R):
         """指定したフレーム番号で表示されているキャラクター名（左右）を取得
@@ -321,17 +322,19 @@ class AnalyzeVideo:
         Returns:
             str: キャラクター名文字列（左）
             str: キャラクター名文字列（右）
+            float: 信頼度最大値（左）
+            float: 信頼度最大値（右）
         """
         # 元のフレーム番号を退避
         fno_temp = self.frame_no
         ret = self.set_frame(fno_eofcharasel)
 
-        name_L = self.get_charaname(True,  charnames_L)
-        name_R = self.get_charaname(False, charnames_R)
+        name_L, maxval_L = self.get_charaname(True,  charnames_L)
+        name_R, maxval_R = self.get_charaname(False, charnames_R)
 
         # 元のフレーム番号に戻す
         ret = self.set_frame(fno_temp)
-        return name_L, name_R
+        return name_L, name_R, maxval_L, maxval_R
 
 
     def get_flags(self, fno_eofmatch: int):

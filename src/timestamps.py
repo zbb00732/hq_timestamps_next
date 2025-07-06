@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+from datetime import datetime
 from tkinter import filedialog
 import FreeSimpleGUI as sg
 from constants import Constants as C
@@ -54,11 +55,15 @@ def main():
     window = create_window()
 
     #フラグ、テンポラリ変数初期化
-    charaselect_flg = 0
-    matchvalid_flg  = 0
+    charaselect_flg = False
+    matchvalid_flg  = False
+    loadscreen_flg  = False
     fno_eofcharasel = 0
     fno_startmatch  = 0
     fno_eofmatch    = 0
+    status = 'nomatch'
+    skip_interval = 1/4
+    skip = int( video_data.fps * skip_interval )
 
     match_no = 0
 
@@ -71,11 +76,17 @@ def main():
     #frame_no = (1*60*60 + 21*60 + 48) * 60
     #frame_no = (1*60*60 + 22*60 + 59) * 60
 
+    starttime = datetime.now()
+    timestamp  = '処理開始: ' + starttime.strftime("%Y-%m-%d %H:%M:%S") + '\n'
+    timestamp += 'Timestamps:\n'
+    timestamp += '0:00:00 Settings'
+    video_data.timestamps_text.append(timestamp + '\n')
 
     # メインループ
     while True:
         frame_no += 1
-        if ( frame_no % C.SKIP ) != 0:
+
+        if ( frame_no % skip ) != 0:
             continue
 
         # 指定したフレーム番号に飛ぶ
@@ -101,20 +112,19 @@ def main():
 
         if status == 'charaselect':
             # キャラクターセレクト画面
-            #nm_l = analyze.get_charaname(True,  video_data.char_names_l)
-            #nm_r = analyze.get_charaname(False, video_data.char_names_r)
-            #print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :キャラセレクト画面 Left: {nm_l}, Right: {nm_r}')
-            if charaselect_flg == 0:
+            if not charaselect_flg:
                 print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :キャラセレクト画面を検知')
 
-            if matchvalid_flg == 1:
+            if matchvalid_flg:
                 # 対戦画面・試合成立後 → キャラセレクト画面 に遷移直後
                 #print(f'試合終了時のフレーム：{fno_eofmatch}')
+                # 画面切り替わり直前はフラッグの色を判定しづらくなっているため、（fno_eofmatch - 0.5秒）の画面でフラッグ数をカウントする。
+                fno_temp = fno_eofmatch - int(video_data.fps * 0.5)
                 flags_L, flags_R, max_flags = analyze.get_flags(fno_eofmatch)
                 #print(f'獲得フラッグ数：{flags_L} : {flags_R} / {max_flags}')
 
                 if max( flags_L, flags_R ) == max_flags:
-                    # 左右の獲得フラッグ数が最大フラッグ数に達していれば試合決着とする（達していない場合、中止とみなす）
+                    # 左右の獲得フラッグ数が最大フラッグ数に達していれば試合決着とする（達していない場合、試合中止とみなす）
                     match_no += 1
                     # 時間、分、秒の計算
                     time_in_seconds = int( fno_startmatch / video_data.fps )
@@ -122,9 +132,9 @@ def main():
                     minutes = (time_in_seconds % 3600) // 60
                     seconds = time_in_seconds % 60
                     # フォーマットされた文字列を作成
-                    timestamp = "{:01d}:{:02d}:{:02d} M{:02d}: Player1 - {} vs Player2 - {}\n".format(hours, minutes, seconds,
+                    timestamp = "{:01d}:{:02d}:{:02d} M{:02d}: Player1 - {} vs Player2 - {}".format(hours, minutes, seconds,
                                                                                           match_no, name_l, name_r)
-                    video_data.timestamps_text.append(timestamp)
+                    video_data.timestamps_text.append(timestamp + '\n')
                     print(timestamp)
 
                     if   flags_L == flags_R:
@@ -134,39 +144,58 @@ def main():
                     else:
                         winner = 'Player2 win'
 
-                    winnerstr = winner + ' by ' + str(flags_L) + ':' + str(flags_R) + '\n'
-                    video_data.timestamps_text.append(winnerstr)
+                    winnerstr = winner + ' by ' + str(flags_L) + ':' + str(flags_R)
+                    video_data.timestamps_text.append(winnerstr + '\n')
                     print(winnerstr)
 
-                matchvalid_flg = 0
+                matchvalid_flg = False
 
-            # キャラクターセレクト画面である間は、「キャラ決定時のフレーム番号」を現在のフレーム番号で更新し続ける
+            # キャラクターセレクト画面である間は、「キャラ決定時のフレーム番号」を（現在のフレーム番号）で更新し続ける
             fno_eofcharasel = frame_no
-            charaselect_flg = 1
+            charaselect_flg = True
+            loadscreen_flg  = False
 
         elif status == 'duringmatch_invalid':
             # 対戦画面・試合成立前
-            if charaselect_flg == 1:
+            if charaselect_flg:
                 # キャラセレクト画面 → ～ → 対戦画面　に遷移直後
-                # 2秒前のフレーム番号を「試合開始時のフレーム番号」として保存
-                fno_startmatch = frame_no - int(video_data.fps * 2)
+                # 3秒前のフレーム番号を「試合開始時のフレーム番号」として保存
+                fno_startmatch = frame_no - int(video_data.fps * 3)
 
                 # キャラ決定時のフレーム番号でキャラクタ名（左右）を取得
-                name_l, name_r = analyze.get_charanames(fno_eofcharasel, video_data.char_names_l, video_data.char_names_r)
+                # 画面切り替わり直前はキャラクタ名を判定しづらくなっているため、（キャラ決定時のフレーム番号 - 0.1秒）で判定する。
+                fno_temp = fno_eofcharasel - int(video_data.fps * 0.1)
+                name_l, name_r, maxval_L, maxval_R = analyze.get_charanames(fno_temp, video_data.char_names_l, video_data.char_names_r)
                 print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :対戦画面・試合成立前 を検知 Left: {name_l}, Right: {name_r}')
-                charaselect_flg = 0
-
+                #print(f'L: {name_l.ljust(10)}, {maxval_L}')
+                #print(f'R: {name_r.ljust(10)}, {maxval_R}')
+                charaselect_flg = False
+                loadscreen_flg  = False
 
         elif status == 'duringmatch_valid':
             # 対戦画面・試合成立後
-            if matchvalid_flg == 0:
+            if not matchvalid_flg:
                 print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :対戦画面・試合成立後 を検知')
-            # 対戦画面である間は、「試合終了時のフレーム番号」を（現在のフレーム番号 - 1秒）で更新し続ける
-            # 暗転直前はフラッグの色が判定しづらくなっているため、（現在のフレーム番号 - 1秒）とする。
-            fno_eofmatch = frame_no - int(video_data.fps * 1)
-            matchvalid_flg  = 1
+            # 対戦画面である間は、「試合終了時のフレーム番号」を（現在のフレーム番号）で更新し続ける
+            fno_eofmatch = frame_no
+            matchvalid_flg  = True
+
+        elif status == 'loadscreen':
+            loadscreen_flg  = True
+
         #else:
         #    print(f'現在のフレーム: {frame_no} / {video_data.totalframes}')
+
+        # 状態によって次ループのスキップ間隔（sec）を変える
+        if   status == 'charaselect':
+            skip_interval = 1/4
+        elif loadscreen_flg:
+            skip_interval = 1
+        else:
+            skip_interval = 2
+
+        skip = int( video_data.fps * skip_interval )
+
 
     # ループ終了後処理
     if video_data.is_cancel:
@@ -174,6 +203,10 @@ def main():
     else:
         # 終了処理
         print('解析完了。')
+
+        endtime = datetime.now()
+        timestamp  = '処理終了: ' + endtime.strftime("%Y-%m-%d %H:%M:%S")
+        video_data.timestamps_text.append(timestamp + '\n')
 
         output = TimestampsOutput()
         output.write(video_data.timestamps_text)
