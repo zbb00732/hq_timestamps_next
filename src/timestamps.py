@@ -145,8 +145,8 @@ def main():
                     else:
                         winner = 'Player2 win'
 
-                    winnerstr = winner + ' by ' + str(flags_L) + ':' + str(flags_R)
-                    video_data.timestamps_text.append(winnerstr + '\n')
+                    winnerstr = "{} by {}:{}\n".format(winner, flags_L, flags_R)
+                    video_data.timestamps_text.append(winnerstr)
                     print('試合終了')
                     print(winnerstr)
 
