@@ -18,6 +18,42 @@ def main():
     """メイン関数
     """
 
+    # ここから 内部関数定義
+    def end_match():
+        """試合成立後 → 別ステータスに遷移直後の処理
+
+        """
+        nonlocal analyze
+        nonlocal video_data
+        nonlocal match_no
+
+        flags_L, flags_R = analyze.get_flags(fno_eofmatch, max_flags)
+        #print(f'Flags: {flags_L}:{flags_R} / {max_flags}')
+
+        if max( flags_L, flags_R ) <= max_flags:
+            # 左右の獲得フラッグ数が最大フラッグ数に達していれば試合決着とする（達していない場合、試合中止とみなす）
+            match_no += 1
+            # フォーマットされた文字列を作成
+            ts_text = ts_format(fno_startmatch, video_data.fps)
+            timestamp = f'{ts_text} M{match_no:02d}: Player1 - {name_l} vs Player2 - {name_r}'
+            video_data.timestamps_text.append(timestamp + '\n')
+
+            if   flags_L == flags_R:
+                winner = 'Draw'
+            elif flags_L >  flags_R:
+                winner = 'Player1 win'
+            else:
+                winner = 'Player2 win'
+
+            winnerstr = "{} by {}:{}".format(winner, flags_L, flags_R)
+            video_data.timestamps_text.append(winnerstr + '\n')
+            #################'\r進捗:100.00%(0:00:00) キャラクター選択画面\r')
+            sys.stdout.write('\r                                          \r')
+            print(winnerstr)
+            print(f'{progress_txt}試合終了　　　　　　\n')
+
+    # ここまで 内部関数定義
+
     video_data = AnalyzedVideoData()
 
     # キャラクター名画像を取得
@@ -58,14 +94,27 @@ def main():
     charaselect_flg = False
     matchvalid_flg  = False
     loadscreen_flg  = False
+    lastoneflag_flg = False
     fno_eofcharasel = 0
     fno_startmatch  = 0
     fno_eofmatch    = 0
     status = 'nomatch'
+    stat_text = 'その他'
     skip_interval = 1/4
     skip = int( video_data.fps * skip_interval )
+    progress_bar = -1
+    progress_pct = "  0.0"
 
     match_no = 0
+
+    # デバッグ用
+    cnt_charaselect = 0
+    cnt_lastoneflag = 0
+    cnt_blackout    = 0
+    cnt_matvalid    = 0
+    cnt_matinvalid  = 0
+    cnt_other       = 0
+
 
     # 現在のフレーム番号
     frame_no = 0
@@ -73,12 +122,13 @@ def main():
     #frame_no = (0*60*60 +  0*60 + 45) * 60   #2700
     #frame_no = (0*60*60 +  1*60 + 50) * 60   #6600
     #frame_no = (0*60*60 +  3*60 + 30) * 60   #12600
+    #frame_no = (0*60*60 + 44*60 + 54) * 60
+    #frame_no = (1*60*60 +  1*60 + 15) * 60
     #frame_no = (1*60*60 + 21*60 + 48) * 60
     #frame_no = (1*60*60 + 22*60 + 59) * 60
 
     starttime = datetime.now()
-    ts_text  = '処理開始: ' + starttime.strftime("%Y-%m-%d %H:%M:%S") + '\n'
-    ts_text += 'Timestamps:\n'
+    ts_text  = 'Timestamps:\n'
     ts_text += '0:00:00 Settings'
     video_data.timestamps_text.append(ts_text + '\n')
 
@@ -104,121 +154,146 @@ def main():
         # プログレスバーの更新
         if event not in (C.CANCEL_KEY, sg.WIN_CLOSED):
             progress     = frame_no / video_data.totalframes
+            progress_bar_prev = progress_bar
             progress_bar = int(progress * C.BAR.MAX)
-            window[C.BAR.KEY].update(progress_bar)
-            window.refresh()
+            if progress_bar > progress_bar_prev:
+                window[C.BAR.KEY].update(progress_bar)
+                window.refresh()
 
             # コンソール出力
             ts_text = ts_format(frame_no, video_data.fps)
-            sys.stdout.write(f'\r進捗:{progress * 100:6.2f}%({ts_text}) ')
+            progress_pct_prev = progress_pct
+            progress_pct = f'{progress * 100:5.1f}'
+            progress_txt = f'\r進捗:{progress_pct}%({ts_text}) '
+            if progress_pct > progress_pct_prev:
+                sys.stdout.write(progress_txt + stat_text)
 
         # 現在のステータス（どの画面か）を取得
+        #status = analyze.get_status2(status)
         status = analyze.get_status()
 
         if status == 'charaselect':
             # キャラクターセレクト画面
-            #if not charaselect_flg:
-            #    #print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :キャラセレクト画面を検知')
-            #    print('キャラクターセレクト画面を検知')
-
             if matchvalid_flg:
                 # 対戦画面・試合成立後 → キャラセレクト画面 に遷移直後
-                #print(f'試合終了時のフレーム：{fno_eofmatch}')
-                # 画面切り替わり直前はフラッグの色を判定しづらくなっているため、（fno_eofmatch - 0.5秒）の画面でフラッグ数をカウントする。
-                fno_temp = fno_eofmatch - int(video_data.fps * 0.5)
-                flags_L, flags_R, max_flags = analyze.get_flags(fno_temp)
-                #print(f'獲得フラッグ数：{flags_L} : {flags_R} / {max_flags}')
-
-                if max( flags_L, flags_R ) == max_flags:
-                    # 左右の獲得フラッグ数が最大フラッグ数に達していれば試合決着とする（達していない場合、試合中止とみなす）
-                    match_no += 1
-                    # フォーマットされた文字列を作成
-                    ts_text = ts_format(fno_startmatch, video_data.fps)
-                    timestamp = "{} M{:02d}: Player1 - {} vs Player2 - {}".format(ts_text, match_no, name_l, name_r)
-                    video_data.timestamps_text.append(timestamp + '\n')
-                    #print(timestamp)
-
-                    if   flags_L == flags_R:
-                        winner = 'Draw'
-                    elif flags_L >  flags_R:
-                        winner = 'Player1 win'
-                    else:
-                        winner = 'Player2 win'
-
-                    winnerstr = "{} by {}:{}\n".format(winner, flags_L, flags_R)
-                    video_data.timestamps_text.append(winnerstr)
-                    print('試合終了')
-                    print(winnerstr)
-
+                end_match()
                 matchvalid_flg = False
 
             # キャラクターセレクト画面である間は、「キャラ決定時のフレーム番号」を（現在のフレーム番号）で更新し続ける
             fno_eofcharasel = frame_no
             charaselect_flg = True
-            loadscreen_flg  = False
+            lastoneflag_flg = False
 
         elif status == 'duringmatch_invalid':
             # 対戦画面・試合成立前
-            if charaselect_flg:
-                # キャラセレクト画面 → ～ → 対戦画面　に遷移直後
+            if charaselect_flg or matchvalid_flg:
+                # キャラセレクト画面　 → ～ → 対戦画面　に遷移直後　または
+                # 対戦画面・試合成立後 →　　→ 対戦画面・試合成立前　に遷移直後（リマッチ）
+
+                if matchvalid_flg:
+                    # 対戦画面・試合成立後 →　　→ 対戦画面　に遷移直後
+                    end_match()
+                    print(f'{progress_txt}リマッチ　　　　　　')
+                elif charaselect_flg:
+                    # キャラセレクト画面　 → ～ → 対戦画面　に遷移直後
+                    # キャラ決定時のフレーム番号でキャラクタ名（左右）を取得
+                    # 画面切り替わり直前はキャラクタ名を判定しづらくなっているため、（キャラ決定時のフレーム番号 - 0.1秒）で判定する。
+                    fno_temp = fno_eofcharasel - int(video_data.fps * 0.1)
+                    name_l, name_r, maxval_L, maxval_R = analyze.get_charanames(fno_temp, video_data.char_names_l, video_data.char_names_r)
+                    max_flags = analyze.get_maxflags()
+                    print(f'{progress_txt}試合開始　　　　　　')
+
                 # 3秒前のフレーム番号を「試合開始時のフレーム番号」として保存
                 fno_startmatch = frame_no - int(video_data.fps * 3)
-
-                # キャラ決定時のフレーム番号でキャラクタ名（左右）を取得
-                # 画面切り替わり直前はキャラクタ名を判定しづらくなっているため、（キャラ決定時のフレーム番号 - 0.1秒）で判定する。
-                fno_temp = fno_eofcharasel - int(video_data.fps * 0.1)
-                name_l, name_r, maxval_L, maxval_R = analyze.get_charanames(fno_temp, video_data.char_names_l, video_data.char_names_r)
-                #print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :対戦画面・試合成立前 を検知 Left: {name_l}, Right: {name_r}')
-                #print(f'L: {name_l.ljust(10)}, {maxval_L}')
-                #print(f'R: {name_r.ljust(10)}, {maxval_R}')
                 ts_text = ts_format(fno_startmatch, video_data.fps)
-                timestamp = "{} M{:02d}: Player1 - {} vs Player2 - {}".format(ts_text, match_no + 1, name_l, name_r)
-                print('試合開始')
+                timestamp = f"{ts_text} M{(match_no + 1):02d}: Player1 - {name_l} vs Player2 - {name_r}"
                 print(timestamp)
 
+                matchvalid_flg  = False
                 charaselect_flg = False
-                loadscreen_flg  = False
+                lastoneflag_flg = analyze.is_lastoneflag(max_flags)
 
         elif status == 'duringmatch_valid':
             # 対戦画面・試合成立後
-            #if not matchvalid_flg:
-                #print(f'現在のフレーム: {frame_no} / {video_data.totalframes} :対戦画面・試合成立後 を検知')
-
             # 対戦画面である間は、「試合終了時のフレーム番号」を（現在のフレーム番号）で更新し続ける
             fno_eofmatch = frame_no
             matchvalid_flg  = True
 
-        elif status == 'loadscreen':
-            loadscreen_flg  = True
-
-        #else:
-        #    print(f'現在のフレーム: {frame_no} / {video_data.totalframes}')
+            if not lastoneflag_flg:
+                lastoneflag_flg = analyze.is_lastoneflag(max_flags)
 
         # 状態によって次ループのスキップ間隔（sec）を変える
         if   status == 'charaselect':
-            skip_interval = 1/4
-        elif loadscreen_flg:
+            stat_text = 'キャラクター選択画面'
+            skip_interval = 0.25
+            cnt_charaselect += 1
+        elif lastoneflag_flg:
+            stat_text = '残り１フラッグ　　　'
+            skip_interval = 0.5
+            cnt_lastoneflag += 1
+        elif status == 'blackout':
+            stat_text = '暗転画面　　　　　　'
             skip_interval = 1
+            cnt_blackout    += 1
+        elif status == 'duringmatch_valid':
+            stat_text = '試合中　　　　　　　'
+            skip_interval = 3
+            cnt_matvalid    += 1
+        elif status == 'duringmatch_invalid':
+            stat_text = '試合中　　　　　　　'
+            skip_interval = 3
+            cnt_matinvalid  += 1
         else:
+            stat_text = 'その他　　　　　　　'
             skip_interval = 2
+            cnt_other       += 1
 
         skip = int( video_data.fps * skip_interval )
 
 
     # ループ終了後処理
     if video_data.is_cancel:
-        print('キャンセルされました。')
+        print('\nキャンセルされました。')
     else:
         # 終了処理
-        print('解析完了。')
+        ts_text = ts_format(video_data.totalframes, video_data.fps)
+        sys.stdout.write('\r                                          \r')
 
-        endtime = datetime.now()
-        ts_text  = '処理終了: ' + endtime.strftime("%Y-%m-%d %H:%M:%S")
-        video_data.timestamps_text.append(ts_text + '\n')
+        print(          f'進捗:100.0%({ts_text}) 解析完了')
 
         output = TimestampsOutput()
         output.write(video_data.timestamps_text)
-        print('タイムスタンプをファイルに書き込みました。')
+        print('タイムスタンプをファイルに書き込みました。\n')
+
+        # 処理結果、統計情報の出力
+        endtime       = datetime.now()
+        elapsedtime   = endtime - starttime
+        total_seconds = int(elapsedtime.total_seconds())
+        el_h =  total_seconds // 3600
+        el_m = (total_seconds %  3600) // 60
+        el_s =  total_seconds          %  60
+
+        cnt_total = cnt_charaselect + cnt_blackout + cnt_matinvalid + cnt_matvalid + cnt_lastoneflag + cnt_other
+
+        stats_text  = f'処理開始：{starttime.strftime("%Y-%m-%d %H:%M:%S")}\n'
+        stats_text += f'処理終了：{endtime.strftime("%Y-%m-%d %H:%M:%S")}\n'
+        ########################：YYYY-mm-dd HH:MM:SS
+        stats_text += f'所要時間：            {el_h:d}:{el_m:02d}:{el_s:02d}\n'
+        stats_text += f'動画時間：            {ts_text}\n\n'
+
+        stats_text +=  '処理結果統計\n'
+        stats_text += f'キャラ選択：{cnt_charaselect:7d} ({(cnt_charaselect / cnt_total * 100):5.1f}%)\n'
+        stats_text += f'暗転画面　：{cnt_blackout   :7d} ({(cnt_blackout    / cnt_total * 100):5.1f}%)\n'
+        stats_text += f'試合成立前：{cnt_matinvalid :7d} ({(cnt_matinvalid  / cnt_total * 100):5.1f}%)\n'
+        stats_text += f'試合成立後：{cnt_matvalid   :7d} ({(cnt_matvalid    / cnt_total * 100):5.1f}%)\n'
+        stats_text += f'残１フラグ：{cnt_lastoneflag:7d} ({(cnt_lastoneflag / cnt_total * 100):5.1f}%)\n'
+        stats_text += f'その他　　：{cnt_other      :7d} ({(cnt_other       / cnt_total * 100):5.1f}%)\n'
+        stats_text +=  '----------------------------\n'
+        stats_text += f'計　　　　：{cnt_total      :7d} (100.0%)\n'
+        stats_text += f'処理フレーム/総フレーム：{cnt_total:d}/{video_data.totalframes:d} ({(cnt_total / video_data.totalframes * 100):.1f}%)'
+        video_data.statistics_text.append(stats_text)
+        output.write_stat(video_data.statistics_text)
+        print(f'{stats_text}')
 
     # コンソールウィンドウを見やすくするための待機
     time.sleep(1)
@@ -283,15 +358,13 @@ def ts_format(frame_no: int, fps: float):
     Returns:
         str: h:mm:dd の書式の文字列
     """
-
     time_in_seconds = int( frame_no / fps )
-    hours   =  time_in_seconds // 3600
-    minutes = (time_in_seconds %  3600) // 60
-    seconds =  time_in_seconds          %  60
-    # フォーマットされた文字列を作成
-    ts_text = "{:01d}:{:02d}:{:02d}".format(hours, minutes, seconds)
+    h =  time_in_seconds // 3600
+    m = (time_in_seconds %  3600) // 60
+    s =  time_in_seconds          %  60
 
-    return ts_text
+    # フォーマットされた文字列を返す
+    return f"{h:d}:{m:02d}:{s:02d}"
 
 
 if __name__ == "__main__":

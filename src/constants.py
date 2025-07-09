@@ -59,6 +59,7 @@ class Constants:
     CANCEL_KEY = '-CANCEL-'   # キャンセルボタンのキー
 
     OUTPUT_FILE = 'timestamps.txt' # タイムスタンプ出力ファイル名
+    STATIS_FILE = 'statistics.txt' # 処理結果統計情報出力ファイル名
     OUTPUT_ENCODING = 'utf-8'      # 出力ファイルのエンコーディング
 
     SKIP = 4                       # 指定のフレームおきに処理をスキップ
