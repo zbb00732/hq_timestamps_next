@@ -1,22 +1,27 @@
 import cv2
 import numpy as np
+from collections import OrderedDict
+
 #from constants import Constants as C
 from analyzed_video_data import AnalyzedVideoData
 
 
 # 定数
+FRAME_CACHE_SIZE    = 30
+MAX_SEQUENTIAL_READ = 40
+
 # 各種画面判定エリア
 AREA_CHARASELECT = (174,   0,  37, 181)
 AREA_CHARNAME_L  = ( 29,  24, 122,  27)
 AREA_CHARNAME_R  = (499,  24, 122,  27)
 AREA_CHKBLACKOUT = (480,   0, 160,  90)
 
-AREA_FLAG_XL  =  30
-AREA_FLAG_XR  = 606
-AREA_FLAG_Y   =   6
-AREA_FLAG_W   =   6
-AREA_FLAG_H   =   6
-AREA_FLAG_SPC =  22
+AREA_FLAG_XL  =  30    # 左1番目フラッグ x 座標
+AREA_FLAG_XR  = 606    # 右1番目フラッグ x 座標
+AREA_FLAG_Y   =   6    # フラッグ y 座標
+AREA_FLAG_W   =   6    # フラッグ判定エリア幅
+AREA_FLAG_H   =   6    # フラッグ判定エリア高さ
+AREA_FLAG_SPC =  22    # フラッグが並ぶ間隔
 
 # 白のHSV範囲
 HSV_RANGES_WH = [
@@ -36,7 +41,7 @@ class AnalyzeVideo:
         capture (cv2.VideoCapture): 動画ファイルのキャプチャオブジェクト
         fps (float): 動画のフレームレート
         totalframes (int): 動画の総フレーム数
-        frame (ndarray): 現在のフレーム情報
+        frame (numpy.ndarray): 現在のフレーム情報
         frame_no (int): 現在のフレーム番号
     """
 
@@ -49,12 +54,13 @@ class AnalyzeVideo:
         self.totalframes = 0
         self.frame = None
         self.frame_no = 0
+        self.frame_cache = OrderedDict()
 
         # 検出する画像の読み込み
         self.img_charaselect = cv2.imread('matchtemplate/charaselect.png', cv2.IMREAD_COLOR)
 
 
-    def file_open(self, file: str):
+    def file_open(self, file: str) -> bool:
         """動画ファイルを開く
         Args:
             file (str): 動画ファイルのパス
@@ -87,7 +93,7 @@ class AnalyzeVideo:
             self.capture = None
 
 
-    def get_fps(self):
+    def get_fps(self) -> float:
         """動画のフレームレートを取得
 
         Returns:
@@ -96,8 +102,18 @@ class AnalyzeVideo:
         return self.fps
 
 
-    def set_frame(self, frame_no: int):
-        """動画内の指定したフレーム番号に飛ぶ
+    def get_totalframes(self) -> int:
+        """動画のフレーム数を取得
+
+        Returns:
+            int: 動画のフレーム数
+        """
+        return self.totalframes
+
+
+# ここから フレーム移動関連
+    def set_frame_old(self, frame_no: int) -> bool:
+        """動画内の指定したフレーム番号に飛ぶ（旧ロジック）
 
         Args:
             frame_no (int): フレーム番号
@@ -118,17 +134,59 @@ class AnalyzeVideo:
         return ret
 
 
-    def get_totalframes(self):
-        """動画のフレーム数を取得
+    def _update_cache(self, frame_no, frame):
+        """フレームのデータをキャッシュに保存
+
+        Args:
+            frame_no (int): フレーム番号
+            frame (numpy.ndarray): フレーム
+
+        """
+        self.frame_cache[frame_no] = frame
+        if len(self.frame_cache) > FRAME_CACHE_SIZE:
+            self.frame_cache.popitem(last=False)  # FIFOで削除
+
+
+    def set_frame(self, target_fno: int) -> bool:
+        """動画内の指定したフレーム番号に飛ぶ（高速化）
+
+        Args:
+            target_fno (int): フレーム番号
 
         Returns:
-            int: 動画のフレーム数
+            bool: 指定したフレームに飛べればTrue、そうでなければFalse
         """
-        return self.totalframes
+        # キャッシュにあれば即利用
+        if target_fno in self.frame_cache:
+            self.frame = self.frame_cache[target_fno]
+            self.frame_no = target_fno
+            return True
 
+        # 現在位置取得
+        current_fno = int(self.capture.get(cv2.CAP_PROP_POS_FRAMES))
+        delta = target_fno - current_fno
+
+        # 近距離なら read() で進める
+        if 0 < delta <= MAX_SEQUENTIAL_READ:
+            for _ in range(delta):
+                ret, _ = self.capture.read()
+            ret, frame = self.capture.read()
+        else:
+            self.capture.set(cv2.CAP_PROP_POS_FRAMES, target_fno)
+            ret, frame = self.capture.read()
+
+        if ret:
+            frame_resized = cv2.resize(frame, (640, 360))
+            self.frame = frame_resized
+            self.frame_no = target_fno
+            self._update_cache(target_fno, frame_resized)
+
+        return ret
+
+# ここまで フレーム移動関連
 
 # ここから 画像照合関連
-    def get_maxval(self, image, area=(0, 0, 640, 360), color=cv2.IMREAD_COLOR):
+    def get_maxval(self, image, area=(0, 0, 640, 360), color=cv2.IMREAD_COLOR) -> float:
         """現在のフレーム内で、指定した範囲の、指定した画像とマッチした度合（信頼度最大値）を取得
 
         Args:
@@ -154,7 +212,7 @@ class AnalyzeVideo:
         return max_val
 
 
-    def is_matchimage(self, image, area=(0, 0, 640, 360), color=cv2.IMREAD_COLOR, threshold=0.7):
+    def is_matchimage(self, image, area=(0, 0, 640, 360), color=cv2.IMREAD_COLOR, threshold=0.7) -> bool:
         """現在のフレーム内で、指定した範囲が、指定した画像とマッチするかを判定
 
         Args:
@@ -176,7 +234,7 @@ class AnalyzeVideo:
         return False
 
 
-    def is_blackout(self):
+    def is_blackout(self) -> bool:
         """現在のフレーム内で、指定した範囲が、暗転しているかを判定
 
         Returns:
@@ -194,7 +252,7 @@ class AnalyzeVideo:
 # ここまで 画像照合関連
 
 # ここから フラッグ関連
-    def get_color_match_ratio(self, frame_hsv, hsv_ranges):
+    def get_color_match_ratio(self, frame_hsv, hsv_ranges) -> float:
         """指定したフレーム内のピクセルが、指定した色範囲に含まれる割合を取得
 
         Args:
@@ -220,7 +278,7 @@ class AnalyzeVideo:
         return 0.0
 
 
-    def is_red_or_white(self, area):
+    def is_red_or_white(self, area) -> int:
         """現在のフレーム内で、指定した範囲のピクセルが、赤か白かそれ以外かを判定
 
         Args:
@@ -243,7 +301,7 @@ class AnalyzeVideo:
         return 0
 
 
-    def get_flagcolor(self, left: bool, n: int):
+    def get_flagcolor(self, left: bool, n: int) -> int:
         """現在のフレーム内で、指定した位置のフラッグの色を返す
 
         Args:
@@ -265,7 +323,7 @@ class AnalyzeVideo:
         return self.is_red_or_white(area)
 
 
-    def get_maxflags(self):
+    def get_maxflags(self) -> int:
         """現在のフレーム内での、最大フラッグ数を取得
 
         Returns:
@@ -284,7 +342,7 @@ class AnalyzeVideo:
         return 7
 
 
-    def is_duringmatch(self):
+    def is_duringmatch(self) -> int:
         """現在のフレームが、対戦画面か（画面上部左右にフラッグがあるか）を判定
 
         Returns:
@@ -302,7 +360,7 @@ class AnalyzeVideo:
         return flagcolor_1R
 
 
-    def is_lastoneflag(self, max_flags: int):
+    def is_lastoneflag(self, max_flags: int) -> bool:
         """現在のフレームが、あと1フラッグで決着する状態かを判定
         Args:
             max_flags (int): 最大フラッグ数
@@ -376,7 +434,7 @@ class AnalyzeVideo:
 
 
 # ここから 画面ステータス関連
-    def get_status(self):
+    def get_status(self) -> str:
         """現在のフレームのステータス（どの画面か）を取得
 
         Returns:
@@ -403,7 +461,7 @@ class AnalyzeVideo:
         return 'nomatch'
 
 
-    def get_status2(self, prev_status: str):
+    def get_status2(self, prev_status: str) -> str:
         """現在のフレームのステータス（どの画面か）を取得
 
         Args:

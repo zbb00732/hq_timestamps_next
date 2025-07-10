@@ -30,7 +30,7 @@ def main():
         flags_L, flags_R = analyze.get_flags(fno_eofmatch, max_flags)
         #print(f'Flags: {flags_L}:{flags_R} / {max_flags}')
 
-        if max( flags_L, flags_R ) <= max_flags:
+        if max( flags_L, flags_R ) == max_flags:
             # 左右の獲得フラッグ数が最大フラッグ数に達していれば試合決着とする（達していない場合、試合中止とみなす）
             match_no += 1
             # フォーマットされた文字列を作成
@@ -100,10 +100,11 @@ def main():
     fno_eofmatch    = 0
     status = 'nomatch'
     stat_text = 'その他'
-    skip_interval = 1/4
+    INTVL_CHARASELECT = 1/4
+    skip_interval = INTVL_CHARASELECT
     skip = int( video_data.fps * skip_interval )
     progress_bar = -1
-    progress_pct = "  0.0"
+    progress_pct = -1.0
 
     match_no = 0
 
@@ -152,21 +153,21 @@ def main():
             break
 
         # プログレスバーの更新
+        progress = frame_no / video_data.totalframes
         if event not in (C.CANCEL_KEY, sg.WIN_CLOSED):
-            progress     = frame_no / video_data.totalframes
             progress_bar_prev = progress_bar
             progress_bar = int(progress * C.BAR.MAX)
             if progress_bar > progress_bar_prev:
                 window[C.BAR.KEY].update(progress_bar)
                 window.refresh()
 
-            # コンソール出力
-            ts_text = ts_format(frame_no, video_data.fps)
-            progress_pct_prev = progress_pct
-            progress_pct = f'{progress * 100:5.1f}'
-            progress_txt = f'\r進捗:{progress_pct}%({ts_text}) '
-            if progress_pct > progress_pct_prev:
-                sys.stdout.write(progress_txt + stat_text)
+        # コンソール出力
+        ts_text = ts_format(frame_no, video_data.fps)
+        progress_pct_prev = progress_pct
+        progress_pct = round( (progress * 100), 1 )
+        progress_txt = f'\r進捗:{progress_pct:5.1f}%({ts_text}) '
+        if progress_pct > progress_pct_prev:
+            sys.stdout.write(progress_txt + stat_text)
 
         # 現在のステータス（どの画面か）を取得
         #status = analyze.get_status2(status)
@@ -197,14 +198,15 @@ def main():
                 elif charaselect_flg:
                     # キャラセレクト画面　 → ～ → 対戦画面　に遷移直後
                     # キャラ決定時のフレーム番号でキャラクタ名（左右）を取得
-                    # 画面切り替わり直前はキャラクタ名を判定しづらくなっているため、（キャラ決定時のフレーム番号 - 0.1秒）で判定する。
-                    fno_temp = fno_eofcharasel - int(video_data.fps * 0.1)
+                    # 画面切り替わり直前はキャラクタ名を判定しづらくなっているため、（キャラ決定時のフレーム番号 - 0.25秒）で判定する。
+                    fno_temp = fno_eofcharasel - int(video_data.fps * INTVL_CHARASELECT)
                     name_l, name_r, maxval_L, maxval_R = analyze.get_charanames(fno_temp, video_data.char_names_l, video_data.char_names_r)
                     max_flags = analyze.get_maxflags()
                     print(f'{progress_txt}試合開始　　　　　　')
 
                 # 3秒前のフレーム番号を「試合開始時のフレーム番号」として保存
                 fno_startmatch = frame_no - int(video_data.fps * 3)
+                # この時点では試合が中止される可能性があるが、コンソールには仮の試合番号で表示する
                 ts_text = ts_format(fno_startmatch, video_data.fps)
                 timestamp = f"{ts_text} M{(match_no + 1):02d}: Player1 - {name_l} vs Player2 - {name_r}"
                 print(timestamp)
@@ -225,7 +227,7 @@ def main():
         # 状態によって次ループのスキップ間隔（sec）を変える
         if   status == 'charaselect':
             stat_text = 'キャラクター選択画面'
-            skip_interval = 0.25
+            skip_interval = INTVL_CHARASELECT
             cnt_charaselect += 1
         elif lastoneflag_flg:
             stat_text = '残り１フラッグ　　　'
@@ -275,7 +277,10 @@ def main():
 
         cnt_total = cnt_charaselect + cnt_blackout + cnt_matinvalid + cnt_matvalid + cnt_lastoneflag + cnt_other
 
-        stats_text  = f'処理開始：{starttime.strftime("%Y-%m-%d %H:%M:%S")}\n'
+        stats_text  =  '処理対象ファイル：\n'
+        stats_text += f'{file_path}\n\n'
+
+        stats_text += f'処理開始：{starttime.strftime("%Y-%m-%d %H:%M:%S")}\n'
         stats_text += f'処理終了：{endtime.strftime("%Y-%m-%d %H:%M:%S")}\n'
         ########################：YYYY-mm-dd HH:MM:SS
         stats_text += f'所要時間：            {el_h:d}:{el_m:02d}:{el_s:02d}\n'
@@ -329,7 +334,7 @@ def create_window():
     return sg.Window(C.WINDOW.TITLE, layout, finalize=True)
 
 
-def get_file_path():
+def get_file_path() -> str:
     """ファイルパスを取得する
 
     Returns:
@@ -350,7 +355,7 @@ def get_file_path():
     return file_path
 
 
-def ts_format(frame_no: int, fps: float):
+def ts_format(frame_no: int, fps: float) -> str:
     """フレーム番号から h:mm:dd の書式の文字列を返す
     Args:
         frame_no (int): フレーム番号
