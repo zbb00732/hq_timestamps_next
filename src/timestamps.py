@@ -99,7 +99,7 @@ def main():
     fno_startmatch  = 0
     fno_eofmatch    = 0
     status = 'nomatch'
-    stat_text = 'その他'
+    stat_text = 'その他　　　　　　　'
     INTVL_CHARASELECT = 1/4
     skip_interval = INTVL_CHARASELECT
     skip = int( video_data.fps * skip_interval )
@@ -213,6 +213,11 @@ def main():
 
                 matchvalid_flg  = False
                 charaselect_flg = False
+                lastoneflag_flg = analyze.is_lastoneflag(max_flags)
+
+            if max_flags < 1:
+                # max_flags の取得に失敗していた場合は取りなおす
+                max_flags = analyze.get_maxflags()
                 lastoneflag_flg = analyze.is_lastoneflag(max_flags)
 
         elif status == 'duringmatch_valid':

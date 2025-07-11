@@ -25,7 +25,7 @@ AREA_FLAG_SPC =  22    # フラッグが並ぶ間隔
 
 # 白のHSV範囲
 HSV_RANGES_WH = [
-    (np.array([  0,   0, 200]), np.array([180,  30, 255]))
+    (np.array([  0,   0, 150]), np.array([180,  30, 255]))
 ]
 
 # 赤のHSV範囲（2つの範囲）
@@ -233,22 +233,6 @@ class AnalyzeVideo:
 
         return False
 
-
-    def is_blackout(self) -> bool:
-        """現在のフレーム内で、指定した範囲が、暗転しているかを判定
-
-        Returns:
-            bool: 暗転していればTrue
-        """
-        x, y, w, h = AREA_CHKBLACKOUT
-        frame_gray = cv2.cvtColor(self.frame[y:y+h, x:x+w], cv2.COLOR_BGR2GRAY)
-        # 指定範囲の平均輝度を取得
-        mean_brightness = cv2.mean(frame_gray)[0]
-        if mean_brightness < 0.1:
-            return True
-
-        return False
-
 # ここまで 画像照合関連
 
 # ここから フラッグ関連
@@ -330,34 +314,18 @@ class AnalyzeVideo:
             int: 最大フラッグ数
         """
 
-        # 左側のフラッグ数をカウント
+        # 左右のフラッグ位置を順にチェック
         for i in range(7):
-            flagcolor_L = self.get_flagcolor(True,  i+1)
+            k = i + 1
+            flagcolor_L = self.get_flagcolor(True,  k)
+            flagcolor_R = self.get_flagcolor(False, k)
 
-            if flagcolor_L == 0:
-                # i+1番目のエリアが赤でも白でもない場合、i を max_flags として返す
+            if ( flagcolor_L * flagcolor_R ) < 1:
+                # i+1番目のエリアの左右どちらかでもフラッグではないと判定した場合、i を max_flags として返す
                 return i
 
         # ループを全て抜けた場合、最大フラッグ数を7とする
         return 7
-
-
-    def is_duringmatch(self) -> int:
-        """現在のフレームが、対戦画面か（画面上部左右にフラッグがあるか）を判定
-
-        Returns:
-            int: 0 対戦画面ではない。1 対戦画面・試合成立前。2 対戦画面・試合成立後。
-        """
-        # 左1フラッグ目の位置の色を判定
-        flagcolor_1L = self.get_flagcolor(True,  1)
-
-        if flagcolor_1L != 1:
-            return flagcolor_1L
-
-        # 右1フラッグ目の位置の色を判定
-        flagcolor_1R = self.get_flagcolor(False, 1)
-
-        return flagcolor_1R
 
 
     def is_lastoneflag(self, max_flags: int) -> bool:
@@ -434,6 +402,47 @@ class AnalyzeVideo:
 
 
 # ここから 画面ステータス関連
+    def is_duringmatch(self) -> int:
+        """現在のフレームが、対戦画面か（画面上部左右にフラッグがあるか）を判定
+
+        Returns:
+            int: 0 対戦画面ではない。1 対戦画面・試合成立前。2 対戦画面・試合成立後。
+        """
+        # 左右1フラッグ目の位置の色を取得
+        flagcolor_1L = self.get_flagcolor(True,  1)
+        flagcolor_1R = self.get_flagcolor(False, 1)
+
+        # 0 左右どちらか一方でもフラッグではない
+        # 1 左右とも白
+        # 2 左右どちらかまたは両方赤
+        return min( (flagcolor_1L * flagcolor_1R), 2 )
+
+
+    def is_charaselect(self) -> bool:
+        """現在のフレーム内が、キャラクター選択画面かを判定
+
+        Returns:
+            bool: キャラクター選択画面ならばTrue
+        """
+        return self.is_matchimage(self.img_charaselect, AREA_CHARASELECT)
+
+
+    def is_blackout(self) -> bool:
+        """現在のフレーム内で、指定した範囲が、暗転しているかを判定
+
+        Returns:
+            bool: 暗転していればTrue
+        """
+        x, y, w, h = AREA_CHKBLACKOUT
+        frame_gray = cv2.cvtColor(self.frame[y:y+h, x:x+w], cv2.COLOR_BGR2GRAY)
+        # 指定範囲の平均輝度を取得
+        mean_brightness = cv2.mean(frame_gray)[0]
+        if mean_brightness < 0.1:
+            return True
+
+        return False
+
+
     def get_status(self) -> str:
         """現在のフレームのステータス（どの画面か）を取得
 
@@ -450,6 +459,7 @@ class AnalyzeVideo:
             #対戦画面・試合成立後
             return 'duringmatch_valid'
 
+        #if self.is_charaselect():
         if self.is_matchimage(self.img_charaselect, AREA_CHARASELECT):
             #キャラクター選択画面
             return 'charaselect'
@@ -482,7 +492,7 @@ class AnalyzeVideo:
         check_map = {
             'duringmatch_valid':   lambda: ret_duringmatch() == 2,
             'duringmatch_invalid': lambda: ret_duringmatch() == 1,
-            'charaselect':         lambda: self.is_matchimage(self.img_charaselect, AREA_CHARASELECT),
+            'charaselect':         lambda: self.is_charaselect(),
             'blackout':            lambda: self.is_blackout()
         }
 
@@ -501,7 +511,7 @@ class AnalyzeVideo:
                 return status
 
         return 'nomatch'
-# ここまで ステータス関連
+# ここまで 画面ステータス関連
 
 
 # ここから キャラクタ名関連
@@ -564,3 +574,18 @@ class AnalyzeVideo:
 
 # ここまで キャラクタ名関連
 
+
+
+###### デバッグ用
+#            xL = AREA_FLAG_XL + (AREA_FLAG_SPC * i)
+#            x, y, w, h = (xL, AREA_FLAG_Y, AREA_FLAG_W, AREA_FLAG_H)
+#            frame_hsv = cv2.cvtColor(self.frame[y:y+h, x:x+w], cv2.COLOR_BGR2HSV)
+#            h, s, v = cv2.split(frame_hsv)
+
+#            # 各チャンネルの最小・最大値を取得
+#            h_min, h_max = np.min(h), np.max(h)
+#            s_min, s_max = np.min(s), np.max(s)
+#            v_min, v_max = np.min(v), np.max(v)
+#            print(f'{i}: MIN [{h_min:3d}, {s_min:3d}, {v_min:3d}]')
+#            print(f'{i}: MAX [{h_max:3d}, {s_max:3d}, {v_max:3d}]')
+######
