@@ -12,3 +12,5 @@ dist/
 *.jpeg
 *.png
 *timestamps\.txt
+*statistics\.txt
+timestamps\.exe
