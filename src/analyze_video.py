@@ -2,37 +2,9 @@ import cv2
 import numpy as np
 from collections import OrderedDict
 
-#from constants import Constants as C
-from analyzed_video_data import AnalyzedVideoData
-
-
-# 定数
-FRAME_CACHE_SIZE    = 30
-MAX_SEQUENTIAL_READ = 40
-
-# 各種画面判定エリア
-AREA_CHARASELECT = (174,   0,  37, 181)
-AREA_CHARNAME_L  = ( 29,  24, 122,  27)
-AREA_CHARNAME_R  = (499,  24, 122,  27)
-AREA_CHKBLACKOUT = (480,   0, 160,  90)
-
-AREA_FLAG_XL  =  30    # 左1番目フラッグ x 座標
-AREA_FLAG_XR  = 606    # 右1番目フラッグ x 座標
-AREA_FLAG_Y   =   6    # フラッグ y 座標
-AREA_FLAG_W   =   6    # フラッグ判定エリア幅
-AREA_FLAG_H   =   6    # フラッグ判定エリア高さ
-AREA_FLAG_SPC =  22    # フラッグが並ぶ間隔
-
-# 白のHSV範囲
-HSV_RANGES_WH = [
-    (np.array([  0,   0, 150]), np.array([180,  30, 255]))
-]
-
-# 赤のHSV範囲（2つの範囲）
-HSV_RANGES_RD = [
-    (np.array([  0, 200,  50]), np.array([ 10, 255, 255])),
-    (np.array([170, 200,  50]), np.array([180, 255, 255]))
-]
+from constants import Constants as C
+from char_names import CharNames
+from match_template import MatchTemplate
 
 
 class AnalyzeVideo:
@@ -46,7 +18,8 @@ class AnalyzeVideo:
     """
 
 
-    def __init__(self, video_data: AnalyzedVideoData):
+#    def __init__(self, video_data: AnalyzedVideoData):
+    def __init__(self):
         """コンストラクタ
         """
         self.capture = None
@@ -55,9 +28,8 @@ class AnalyzeVideo:
         self.frame = None
         self.frame_no = 0
         self.frame_cache = OrderedDict()
-
-        # 検出する画像の読み込み
-        self.img_charaselect = cv2.imread('matchtemplate/charaselect.png', cv2.IMREAD_COLOR)
+        self.charanames = CharNames()
+        self.matchtemplate = MatchTemplate()
 
 
     def file_open(self, file: str) -> bool:
@@ -99,7 +71,8 @@ class AnalyzeVideo:
         Returns:
             float: 動画のフレームレート
         """
-        return self.fps
+#        return self.fps
+        return self.capture.get(cv2.CAP_PROP_FPS)
 
 
     def get_totalframes(self) -> int:
@@ -108,7 +81,8 @@ class AnalyzeVideo:
         Returns:
             int: 動画のフレーム数
         """
-        return self.totalframes
+#        return self.totalframes
+        return int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
 
 
 # ここから フレーム移動関連
@@ -127,7 +101,8 @@ class AnalyzeVideo:
         # フレームを1枚読み込み
         ret, frame_orig = self.capture.read()
         if ret:
-            frame_resized = cv2.resize(frame_orig, (640, 360))
+            # 解像度 640×360（16:9） に揃える
+            frame_resized = cv2.resize( frame_orig, C.IMG_MATCH.BASE_RESOLUTION[2:] )
             self.frame = frame_resized
             self.frame_no = frame_no
 
@@ -143,7 +118,7 @@ class AnalyzeVideo:
 
         """
         self.frame_cache[frame_no] = frame
-        if len(self.frame_cache) > FRAME_CACHE_SIZE:
+        if len(self.frame_cache) > C.PROC_SPD.FRAME_CACHE_SIZE:
             self.frame_cache.popitem(last=False)  # FIFOで削除
 
 
@@ -166,17 +141,19 @@ class AnalyzeVideo:
         current_fno = int(self.capture.get(cv2.CAP_PROP_POS_FRAMES))
         delta = target_fno - current_fno
 
-        # 近距離なら read() で進める
-        if 0 < delta <= MAX_SEQUENTIAL_READ:
+        if 0 < delta <= C.PROC_SPD.MAX_SEQUENTIAL_READ:
+            # 近距離なら read() で進める
             for _ in range(delta):
                 ret, _ = self.capture.read()
             ret, frame = self.capture.read()
         else:
+            # 遠距離なら直接 set() する
             self.capture.set(cv2.CAP_PROP_POS_FRAMES, target_fno)
             ret, frame = self.capture.read()
 
         if ret:
-            frame_resized = cv2.resize(frame, (640, 360))
+            # 解像度 640×360（16:9） に揃える
+            frame_resized = cv2.resize(frame, C.IMG_MATCH.BASE_RESOLUTION[2:])
             self.frame = frame_resized
             self.frame_no = target_fno
             self._update_cache(target_fno, frame_resized)
@@ -186,7 +163,7 @@ class AnalyzeVideo:
 # ここまで フレーム移動関連
 
 # ここから 画像照合関連
-    def get_maxval(self, image, area=(0, 0, 640, 360), color=cv2.IMREAD_COLOR) -> float:
+    def get_maxval(self, image, area=C.IMG_MATCH.BASE_RESOLUTION, color=cv2.IMREAD_COLOR) -> float:
         """現在のフレーム内で、指定した範囲の、指定した画像とマッチした度合（信頼度最大値）を取得
 
         Args:
@@ -212,7 +189,7 @@ class AnalyzeVideo:
         return max_val
 
 
-    def is_matchimage(self, image, area=(0, 0, 640, 360), color=cv2.IMREAD_COLOR, threshold=0.7) -> bool:
+    def is_matchimage(self, image, area=C.IMG_MATCH.BASE_RESOLUTION, color=cv2.IMREAD_COLOR, threshold=0.7) -> bool:
         """現在のフレーム内で、指定した範囲が、指定した画像とマッチするかを判定
 
         Args:
@@ -274,15 +251,15 @@ class AnalyzeVideo:
         x, y, w, h = area
         frame_hsv = cv2.cvtColor(self.frame[y:y+h, x:x+w], cv2.COLOR_BGR2HSV)
 
-        match_ratio_wh = self.get_color_match_ratio(frame_hsv, HSV_RANGES_WH)
+        match_ratio_wh = self.get_color_match_ratio(frame_hsv, C.IMG_MATCH.HSV_RANGES_WH)
         if match_ratio_wh > 0.7:
-            return 1
+            return C.IMG_MATCH.FLAGCOLOR_WH
 
-        match_ratio_rd = self.get_color_match_ratio(frame_hsv, HSV_RANGES_RD)
+        match_ratio_rd = self.get_color_match_ratio(frame_hsv, C.IMG_MATCH.HSV_RANGES_RD)
         if match_ratio_rd > 0.7:
-            return 2
+            return C.IMG_MATCH.FLAGCOLOR_RD
 
-        return 0
+        return C.IMG_MATCH.FLAGCOLOR_NO
 
 
     def get_flagcolor(self, left: bool, n: int) -> int:
@@ -295,15 +272,15 @@ class AnalyzeVideo:
         Returns:
             int: 2 赤、 1 白、 0 それ以外
         """
-        if (n < 1) or (n > 7):
-            return 0
+        if (n < 1) or (n > C.IMG_MATCH.MAX_FLAGS):
+            return C.IMG_MATCH.FLAGCOLOR_NO
 
         if left:
-            x = AREA_FLAG_XL + (AREA_FLAG_SPC * (n-1))
+            x = C.IMG_MATCH.AREA_FLAG_XL + (C.IMG_MATCH.AREA_FLAG_SPC * (n-1))
         else:
-            x = AREA_FLAG_XR - (AREA_FLAG_SPC * (n-1))
+            x = C.IMG_MATCH.AREA_FLAG_XR - (C.IMG_MATCH.AREA_FLAG_SPC * (n-1))
 
-        area = (x, AREA_FLAG_Y, AREA_FLAG_W, AREA_FLAG_H)
+        area = (x, ) + C.IMG_MATCH.AREA_FLAG_YWH
         return self.is_red_or_white(area)
 
 
@@ -315,17 +292,17 @@ class AnalyzeVideo:
         """
 
         # 左右のフラッグ位置を順にチェック
-        for i in range(7):
+        for i in range( C.IMG_MATCH.MAX_FLAGS ):
             k = i + 1
             flagcolor_L = self.get_flagcolor(True,  k)
             flagcolor_R = self.get_flagcolor(False, k)
 
-            if ( flagcolor_L * flagcolor_R ) < 1:
+            if ( flagcolor_L == C.IMG_MATCH.FLAGCOLOR_NO ) or ( flagcolor_R == C.IMG_MATCH.FLAGCOLOR_NO ):
                 # i+1番目のエリアの左右どちらかでもフラッグではないと判定した場合、i を max_flags として返す
                 return i
 
         # ループを全て抜けた場合、最大フラッグ数を7とする
-        return 7
+        return C.IMG_MATCH.MAX_FLAGS
 
 
     def is_lastoneflag(self, max_flags: int) -> bool:
@@ -339,23 +316,71 @@ class AnalyzeVideo:
         if max_flags == 1:
             return True
 
-        if ( max_flags < 1 ) or ( max_flags > 7 ):
+        if ( max_flags < 1 ) or ( max_flags > C.IMG_MATCH.MAX_FLAGS ):
             return False
 
         temp_maxflags = max_flags - 1
 
         flagcolor_L = self.get_flagcolor(True,  temp_maxflags)
-        if flagcolor_L == 2:
+        if flagcolor_L == C.IMG_MATCH.FLAGCOLOR_RD:
             return True
 
         flagcolor_R = self.get_flagcolor(False, temp_maxflags)
-        if flagcolor_R == 2:
+        if flagcolor_R == C.IMG_MATCH.FLAGCOLOR_RD:
             return True
 
         return False
 
 
-    def get_flags(self, fno_eofmatch: int, max_flags: int):
+    def is_matchfinished_old(self, max_flags: int) -> bool:
+        """現在のフレームが、試合が決着した状態かを判定
+        Args:
+            max_flags (int): 最大フラッグ数
+
+        Returns:
+            bool: 決着した状態なら True
+        """
+        if ( max_flags < 1 ) or ( max_flags > C.IMG_MATCH.MAX_FLAGS ):
+            return False
+
+        temp_maxflags = max_flags
+
+        flagcolor_L = self.get_flagcolor(True,  temp_maxflags)
+        if flagcolor_L == C.IMG_MATCH.FLAGCOLOR_RD:
+            return True
+
+        flagcolor_R = self.get_flagcolor(False, temp_maxflags)
+        if flagcolor_R == C.IMG_MATCH.FLAGCOLOR_RD:
+            return True
+
+        return False
+
+
+    def is_matchfinished(self, max_flags: int) -> int:
+        """現在のフレームが、試合が決着した状態かを判定
+        Args:
+            max_flags (int): 最大フラッグ数
+
+        Returns:
+            int: 0 未決着、1 左側勝利、2 右側勝利
+        """
+        if ( max_flags < 1 ) or ( max_flags > C.IMG_MATCH.MAX_FLAGS ):
+            return C.IMG_MATCH.WIN_N
+
+        temp_maxflags = max_flags
+
+        flagcolor_L = self.get_flagcolor(True,  temp_maxflags)
+        if flagcolor_L == C.IMG_MATCH.FLAGCOLOR_RD:
+            return C.IMG_MATCH.WIN_L
+
+        flagcolor_R = self.get_flagcolor(False, temp_maxflags)
+        if flagcolor_R == C.IMG_MATCH.FLAGCOLOR_RD:
+            return C.IMG_MATCH.WIN_R
+
+        return C.IMG_MATCH.WIN_N
+
+
+    def get_flags_old(self, fno_eofmatch: int, max_flags: int):
         """指定したフレーム番号での獲得フラッグ数をカウント
 
         Args:
@@ -368,15 +393,17 @@ class AnalyzeVideo:
         """
         flags_L = 0
         flags_R = 0
+
         # 元のフレーム番号を退避
         fno_temp = self.frame_no
-        ret = self.set_frame(fno_eofmatch)
+        if fno_eofmatch != fno_temp:
+            ret = self.set_frame(fno_eofmatch)
 
         # 左側のフラッグ数をカウント
         for i in range(max_flags):
             flagcolor_L = self.get_flagcolor(True,  i+1)
 
-            if flagcolor_L == 2:
+            if flagcolor_L == C.IMG_MATCH.FLAGCOLOR_RD:
                 # i+1 番目のフラッグが赤ならば、獲得フラッグ数を +1 する
                 flags_L += 1
             else:
@@ -387,7 +414,7 @@ class AnalyzeVideo:
         for i in range(max_flags):
             flagcolor_R = self.get_flagcolor(False, i+1)
 
-            if flagcolor_R == 2:
+            if flagcolor_R == C.IMG_MATCH.FLAGCOLOR_RD:
                 # i+1 番目のフラッグが赤ならば、獲得フラッグ数を +1 する
                 flags_R += 1
             else:
@@ -395,7 +422,55 @@ class AnalyzeVideo:
                 break;
 
         # 元のフレーム番号に戻す
-        ret = self.set_frame(fno_temp)
+        if fno_eofmatch != fno_temp:
+            ret = self.set_frame(fno_temp)
+
+        return flags_L, flags_R
+
+
+    def get_flags(self, max_flags: int, win: int):
+        """現在のフレームの獲得フラッグ数をカウント
+
+        Args:
+            max_flags (int): 最大フラッグ数
+            win (int): 左右どちらが勝利したか
+
+        Returns:
+            int: 左プレイヤー獲得フラッグ数
+            int: 右プレイヤー獲得フラッグ数
+        """
+        flags_L = 0
+        flags_R = 0
+
+        # 左側のフラッグ数をカウント
+        if win != C.IMG_MATCH.WIN_L:
+            for i in range(max_flags):
+                flagcolor_L = self.get_flagcolor(True,  i+1)
+
+                if flagcolor_L == C.IMG_MATCH.FLAGCOLOR_RD:
+                    # i+1 番目のフラッグが赤ならば、獲得フラッグ数を +1 する
+                    flags_L += 1
+                else:
+                    # i+1 番目のフラッグが赤でないならば、これ以上 flags_L が増えることはないためループを抜ける
+                    break;
+        else:
+            flags_L = max_flags
+
+
+        # 右側のフラッグ数をカウント
+        if win != C.IMG_MATCH.WIN_R:
+            for i in range(max_flags):
+                flagcolor_R = self.get_flagcolor(False, i+1)
+
+                if flagcolor_R == C.IMG_MATCH.FLAGCOLOR_RD:
+                    # i+1 番目のフラッグが赤ならば、獲得フラッグ数を +1 する
+                    flags_R += 1
+                else:
+                    # i+1 番目のフラッグが赤でないならば、これ以上 flags_R が増えることはないためループを抜ける
+                    break;
+        else:
+            flags_R = max_flags
+
         return flags_L, flags_R
 
 # ここまで フラッグ関連
@@ -409,13 +484,19 @@ class AnalyzeVideo:
             int: 0 対戦画面ではない。1 対戦画面・試合成立前。2 対戦画面・試合成立後。
         """
         # 左右1フラッグ目の位置の色を取得
-        flagcolor_1L = self.get_flagcolor(True,  1)
-        flagcolor_1R = self.get_flagcolor(False, 1)
+        flagcolor_L1 = self.get_flagcolor(True,  1)
+        flagcolor_R1 = self.get_flagcolor(False, 1)
 
-        # 0 左右どちらか一方でもフラッグではない
-        # 1 左右とも白
-        # 2 左右どちらかまたは両方赤
-        return min( (flagcolor_1L * flagcolor_1R), 2 )
+        if ( flagcolor_L1 == C.IMG_MATCH.FLAGCOLOR_NO ) or  ( flagcolor_R1 == C.IMG_MATCH.FLAGCOLOR_NO ):
+            # 0 左右どちらか一方でもフラッグではない
+            return C.SCREEN.STATNO_ISNOTMATCH
+
+        if ( flagcolor_L1 == C.IMG_MATCH.FLAGCOLOR_WH ) and ( flagcolor_R1 == C.IMG_MATCH.FLAGCOLOR_WH ):
+            # 1 白・白
+            return C.SCREEN.STATNO_MATCHINVALID
+
+        #     2 赤・白、白・赤、赤・赤
+        return C.SCREEN.STATNO_MATCHVALID
 
 
     def is_charaselect(self) -> bool:
@@ -424,7 +505,7 @@ class AnalyzeVideo:
         Returns:
             bool: キャラクター選択画面ならばTrue
         """
-        return self.is_matchimage(self.img_charaselect, AREA_CHARASELECT)
+        return self.is_matchimage(self.matchtemplate.img_charaselect, C.IMG_MATCH.AREA_CHARASELECT, C.MATCH_TEMPLATE.CHARASEL_COLOR)
 
 
     def is_blackout(self) -> bool:
@@ -433,7 +514,7 @@ class AnalyzeVideo:
         Returns:
             bool: 暗転していればTrue
         """
-        x, y, w, h = AREA_CHKBLACKOUT
+        x, y, w, h = C.IMG_MATCH.AREA_CHKBLACKOUT
         frame_gray = cv2.cvtColor(self.frame[y:y+h, x:x+w], cv2.COLOR_BGR2GRAY)
         # 指定範囲の平均輝度を取得
         mean_brightness = cv2.mean(frame_gray)[0]
@@ -443,7 +524,7 @@ class AnalyzeVideo:
         return False
 
 
-    def get_status(self) -> str:
+    def get_screen(self) -> str:
         """現在のフレームのステータス（どの画面か）を取得
 
         Returns:
@@ -451,27 +532,27 @@ class AnalyzeVideo:
         """
         ret = self.is_duringmatch()
 
-        if ret == 1:
+        if ret == C.SCREEN.STATNO_MATCHINVALID:
             #対戦画面・試合成立前
-            return 'duringmatch_invalid'
+            return C.SCREEN.SCRN_MATCHINVALID
 
-        if ret == 2:
+        if ret == C.SCREEN.STATNO_MATCHVALID:
             #対戦画面・試合成立後
-            return 'duringmatch_valid'
+            return C.SCREEN.SCRN_MATCHVALID
 
         #if self.is_charaselect():
-        if self.is_matchimage(self.img_charaselect, AREA_CHARASELECT):
+        if self.is_matchimage(self.matchtemplate.img_charaselect, C.IMG_MATCH.AREA_CHARASELECT, C.MATCH_TEMPLATE.CHARASEL_COLOR):
             #キャラクター選択画面
-            return 'charaselect'
+            return C.SCREEN.SCRN_CHARASELECT
 
         if self.is_blackout():
             #暗転画面
-            return 'blackout'
+            return C.SCREEN.SCRN_BLACKOUT
 
-        return 'nomatch'
+        return C.SCREEN.SCRN_OTHERS
 
 
-    def get_status2(self, prev_status: str) -> str:
+    def get_screen2(self, prev_status: str) -> str:
         """現在のフレームのステータス（どの画面か）を取得
 
         Args:
@@ -490,14 +571,19 @@ class AnalyzeVideo:
 
         # 判定関数マッピング（すべて遅延評価）
         check_map = {
-            'duringmatch_valid':   lambda: ret_duringmatch() == 2,
-            'duringmatch_invalid': lambda: ret_duringmatch() == 1,
-            'charaselect':         lambda: self.is_charaselect(),
-            'blackout':            lambda: self.is_blackout()
+            C.SCREEN.SCRN_MATCHVALID:   lambda: ret_duringmatch() == C.SCREEN.STATNO_MATCHVALID,
+            C.SCREEN.SCRN_MATCHINVALID: lambda: ret_duringmatch() == C.SCREEN.STATNO_MATCHINVALID,
+            C.SCREEN.SCRN_CHARASELECT:  lambda: self.is_charaselect(),
+            C.SCREEN.SCRN_BLACKOUT:     lambda: self.is_blackout()
         }
 
         # 判定順の初期値（柔軟に順番を決める）
-        default_order = ['duringmatch_valid', 'duringmatch_invalid', 'charaselect', 'blackout']
+        default_order = [
+            C.SCREEN.SCRN_MATCHVALID,
+            C.SCREEN.SCRN_MATCHINVALID,
+            C.SCREEN.SCRN_CHARASELECT,
+            C.SCREEN.SCRN_BLACKOUT
+        ]
 
         if prev_status in default_order:
             # prev_status を先頭に移動（優先判定）
@@ -510,13 +596,13 @@ class AnalyzeVideo:
             if check_map[status]():
                 return status
 
-        return 'nomatch'
-# ここまで 画面ステータス関連
+        return C.SCREEN.SCRN_OTHERS
 
+# ここまで 画面ステータス関連
 
 # ここから キャラクタ名関連
     def get_charaname(self, left: bool, charnames):
-        """現在のフレーム内で表示されているキャラクター名を取得
+        """現在のフレーム内で表示されているキャラクター名（片方）を取得
 
         Args:
             left (bool): 左（True）、右（False）
@@ -528,32 +614,33 @@ class AnalyzeVideo:
         """
         # キャラクター名画像をマッチさせる範囲(x, y, w, h)
         if left:
-            area = AREA_CHARNAME_L
+            area = C.IMG_MATCH.AREA_CHARNAME_L
         else:
-            area = AREA_CHARNAME_R
+            area = C.IMG_MATCH.AREA_CHARNAME_R
 
-        name = 'nomatch'
-        max_temp = 0
+        name = C.CHAR.NOMATCH
+        max_temp = 0.0
+
+        matched_characters = []
 
         # 信頼度最大値（max_val）が 0.6 より大きいもののうち、最大のものを返す
-        for nm, img in zip(charnames.names, charnames.images):
-            max_val = self.get_maxval(img, area, cv2.IMREAD_GRAYSCALE)
-            #max_val = self.get_maxval(img, area)
-            if max_val > 0.6:
-                if max_val > max_temp:
-                    max_temp = max_val
-                    name = nm
+        for charadata in charnames:
+            max_val = self.get_maxval(charadata['image'], area, C.CHAR.COLOR)
+            if max_val > max_temp:
+                max_temp = max_val
+                name = charadata['charname']
 
-        return name, max_temp
+        if max_temp > 0.6:
+            return  name, max_temp
+
+        return C.CHAR.NOMATCH, max_temp
 
 
-    def get_charanames(self, fno_eofcharasel, charnames_L, charnames_R):
+    def get_charanames(self, fno_eofcharasel):
         """指定したフレーム番号で表示されているキャラクター名（左右）を取得
 
         Args:
-            fno_eofmatch (int): 獲得フラッグ数をカウントするフレーム番号
-            charnames_L (CharNames): キャラクター名およびキャラクター名画像のリスト（左）
-            charnames_R (CharNames): キャラクター名およびキャラクター名画像のリスト（右）
+            fno_eofmatch (int): キャラクター名を取得するフレーム番号
 
         Returns:
             str: キャラクター名文字列（左）
@@ -565,8 +652,8 @@ class AnalyzeVideo:
         fno_temp = self.frame_no
         ret = self.set_frame(fno_eofcharasel)
 
-        name_L, maxval_L = self.get_charaname(True,  charnames_L)
-        name_R, maxval_R = self.get_charaname(False, charnames_R)
+        name_L, maxval_L = self.get_charaname(True,  self.charanames.charnames_L)
+        name_R, maxval_R = self.get_charaname(False, self.charanames.charnames_R)
 
         # 元のフレーム番号に戻す
         ret = self.set_frame(fno_temp)
@@ -577,8 +664,9 @@ class AnalyzeVideo:
 
 
 ###### デバッグ用
-#            xL = AREA_FLAG_XL + (AREA_FLAG_SPC * i)
-#            x, y, w, h = (xL, AREA_FLAG_Y, AREA_FLAG_W, AREA_FLAG_H)
+#            xL = C.IMG_MATCH.AREA_FLAG_XL + (C.IMG_MATCH.AREA_FLAG_SPC * i)
+#            area = (xL, ) + C.IMG_MATCH.AREA_FLAG_YWH
+#            x, y, w, h = area
 #            frame_hsv = cv2.cvtColor(self.frame[y:y+h, x:x+w], cv2.COLOR_BGR2HSV)
 #            h, s, v = cv2.split(frame_hsv)
 
