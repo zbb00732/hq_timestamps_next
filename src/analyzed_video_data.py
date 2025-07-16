@@ -7,16 +7,41 @@ class AnalyzedVideoData:
     Attributes:
         fps (float): 動画のフレームレート
         totalframes (int): 動画の総フレーム数
+        is_cancel (bool): キャンセルボタンが押されたかどうか
+        timestamps_text (list[str]): タイムスタンプ文字列のリスト
+        skips (dict[int, int]): スキップ間隔（フレーム）の連想配列
+
+        mstat (int): 試合進行状況ステータス
+        mdata (MatchData): 現在の試合のデータ
+        progress (AnalyzedVideoProgress): 処理データ進捗状況
     """
     def __init__(self):
         self.fps: float = 0.0
         self.totalframes: int = 0
         self.is_cancel: bool = False
         self.timestamps_text: list[str] = ['Timestamps:\n', '0:00:00 Settings\n']
+        self.skips: dict[int, int] = None
 
+        self.mstat = C.STAT.MSTAT_CHARASELECT
         self.mdata = MatchData()
         self.progress = AnalyzedVideoProgress()
-        self.flg = StatusFlgs()
+
+
+    def set_fps(self, fps: float) -> None:
+        """fps をセットするとともにスキップ間隔（フレーム）の連想配列を生成
+        Args:
+            fps (float): 動画のフレームレート
+        """
+        self.fps = fps
+
+        self.skips = {
+            1: int( fps * C.PROC_SPD.INTVL_CHARASELECT ),
+            2: int( fps * C.PROC_SPD.INTVL_MATCHFINISHED ),
+            3: int( fps * C.PROC_SPD.INTVL_LASTONEFLAG ),
+            4: int( fps * C.PROC_SPD.INTVL_MATCHSTARTED ),
+            5: int( fps * C.PROC_SPD.INTVL_BLACKOUT ),
+            0: int( fps * C.PROC_SPD.INTVL_OTHERS )
+        }
 
 
     def ts_format(self, frame_no: int) -> str:
@@ -65,16 +90,15 @@ class MatchData:
         name_R (str): キャラクター名（右）
         max_flags (int): 最大フラッグ数
     """
-
     def __init__(self):
         """コンストラクタ
         """
-        self.match_no        = 0
-        self.fno_eofcharasel = 0
-        self.fno_startmatch  = 0
-        self.name_L          = C.CHAR.NOMATCH
-        self.name_R          = C.CHAR.NOMATCH
-        self.max_flags       = 0
+        self.match_no: int        = 0
+        self.fno_eofcharasel: int = 0
+        self.fno_startmatch: int  = 0
+        self.name_L: str          = C.CHAR.NOMATCH
+        self.name_R: str          = C.CHAR.NOMATCH
+        self.max_flags: int       = 0
 
 
 class AnalyzedVideoProgress:
@@ -90,18 +114,3 @@ class AnalyzedVideoProgress:
         self.bar: int     = 0
         self.pct: float   = 0.0
         self.txt: str     = ''
-
-
-class StatusFlgs:
-    """状態管理フラグクラス
-    Attributes:
-        charaselect   (bool): キャラクター選択画面
-        matchstarted  (bool): 対戦画面・試合開始後
-        lastoneflag   (bool): 残１フラッグ
-        matchfinished (bool): 試合終了後
-    """
-    def __init__(self):
-        self.charaselect   = False
-        self.matchstarted  = False
-        self.lastoneflag   = False
-        self.matchfinished = False

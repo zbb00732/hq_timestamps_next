@@ -86,29 +86,6 @@ class AnalyzeVideo:
 
 
 # ここから フレーム移動関連
-    def set_frame_old(self, frame_no: int) -> bool:
-        """動画内の指定したフレーム番号に飛ぶ（旧ロジック）
-
-        Args:
-            frame_no (int): フレーム番号
-
-        Returns:
-            bool: 指定したフレームに飛べればTrue、そうでなければFalse
-        """
-        # 指定したフレーム位置に移動
-        self.capture.set(cv2.CAP_PROP_POS_FRAMES, frame_no)
-
-        # フレームを1枚読み込み
-        ret, frame_orig = self.capture.read()
-        if ret:
-            # 解像度 640×360（16:9） に揃える
-            frame_resized = cv2.resize( frame_orig, C.IMG_MATCH.BASE_RESOLUTION[2:] )
-            self.frame = frame_resized
-            self.frame_no = frame_no
-
-        return ret
-
-
     def _update_cache(self, frame_no, frame):
         """フレームのデータをキャッシュに保存
 
@@ -332,30 +309,6 @@ class AnalyzeVideo:
         return False
 
 
-    def is_matchfinished_old(self, max_flags: int) -> bool:
-        """現在のフレームが、試合が決着した状態かを判定
-        Args:
-            max_flags (int): 最大フラッグ数
-
-        Returns:
-            bool: 決着した状態なら True
-        """
-        if ( max_flags < 1 ) or ( max_flags > C.IMG_MATCH.MAX_FLAGS ):
-            return False
-
-        temp_maxflags = max_flags
-
-        flagcolor_L = self.get_flagcolor(True,  temp_maxflags)
-        if flagcolor_L == C.IMG_MATCH.FLAGCOLOR_RD:
-            return True
-
-        flagcolor_R = self.get_flagcolor(False, temp_maxflags)
-        if flagcolor_R == C.IMG_MATCH.FLAGCOLOR_RD:
-            return True
-
-        return False
-
-
     def is_matchfinished(self, max_flags: int) -> int:
         """現在のフレームが、試合が決着した状態かを判定
         Args:
@@ -378,54 +331,6 @@ class AnalyzeVideo:
             return C.IMG_MATCH.WIN_R
 
         return C.IMG_MATCH.WIN_N
-
-
-    def get_flags_old(self, fno_eofmatch: int, max_flags: int):
-        """指定したフレーム番号での獲得フラッグ数をカウント
-
-        Args:
-            fno_eofmatch (int): 獲得フラッグ数をカウントするフレーム番号
-            max_flags (int): 最大フラッグ数
-
-        Returns:
-            int: 左プレイヤー獲得フラッグ数
-            int: 右プレイヤー獲得フラッグ数
-        """
-        flags_L = 0
-        flags_R = 0
-
-        # 元のフレーム番号を退避
-        fno_temp = self.frame_no
-        if fno_eofmatch != fno_temp:
-            ret = self.set_frame(fno_eofmatch)
-
-        # 左側のフラッグ数をカウント
-        for i in range(max_flags):
-            flagcolor_L = self.get_flagcolor(True,  i+1)
-
-            if flagcolor_L == C.IMG_MATCH.FLAGCOLOR_RD:
-                # i+1 番目のフラッグが赤ならば、獲得フラッグ数を +1 する
-                flags_L += 1
-            else:
-                # i+1 番目のフラッグが赤でないならば、これ以上 flags_L が増えることはないためループを抜ける
-                break;
-
-        # 右側のフラッグ数をカウント
-        for i in range(max_flags):
-            flagcolor_R = self.get_flagcolor(False, i+1)
-
-            if flagcolor_R == C.IMG_MATCH.FLAGCOLOR_RD:
-                # i+1 番目のフラッグが赤ならば、獲得フラッグ数を +1 する
-                flags_R += 1
-            else:
-                # i+1 番目のフラッグが赤でないならば、これ以上 flags_R が増えることはないためループを抜ける
-                break;
-
-        # 元のフレーム番号に戻す
-        if fno_eofmatch != fno_temp:
-            ret = self.set_frame(fno_temp)
-
-        return flags_L, flags_R
 
 
     def get_flags(self, max_flags: int, win: int):
@@ -455,7 +360,6 @@ class AnalyzeVideo:
                     break;
         else:
             flags_L = max_flags
-
 
         # 右側のフラッグ数をカウント
         if win != C.IMG_MATCH.WIN_R:
@@ -489,14 +393,14 @@ class AnalyzeVideo:
 
         if ( flagcolor_L1 == C.IMG_MATCH.FLAGCOLOR_NO ) or  ( flagcolor_R1 == C.IMG_MATCH.FLAGCOLOR_NO ):
             # 0 左右どちらか一方でもフラッグではない
-            return C.SCREEN.STATNO_ISNOTMATCH
+            return C.STAT.STATNO_ISNOTMATCH
 
         if ( flagcolor_L1 == C.IMG_MATCH.FLAGCOLOR_WH ) and ( flagcolor_R1 == C.IMG_MATCH.FLAGCOLOR_WH ):
             # 1 白・白
-            return C.SCREEN.STATNO_MATCHINVALID
+            return C.STAT.STATNO_MATCHINVALID
 
         #     2 赤・白、白・赤、赤・赤
-        return C.SCREEN.STATNO_MATCHVALID
+        return C.STAT.STATNO_MATCHVALID
 
 
     def is_charaselect(self) -> bool:
@@ -532,24 +436,24 @@ class AnalyzeVideo:
         """
         ret = self.is_duringmatch()
 
-        if ret == C.SCREEN.STATNO_MATCHINVALID:
+        if ret == C.STAT.STATNO_MATCHINVALID:
             #対戦画面・試合成立前
-            return C.SCREEN.SCRN_MATCHINVALID
+            return C.STAT.SCRN_MATCHINVALID
 
-        if ret == C.SCREEN.STATNO_MATCHVALID:
+        if ret == C.STAT.STATNO_MATCHVALID:
             #対戦画面・試合成立後
-            return C.SCREEN.SCRN_MATCHVALID
+            return C.STAT.SCRN_MATCHVALID
 
         #if self.is_charaselect():
         if self.is_matchimage(self.matchtemplate.img_charaselect, C.IMG_MATCH.AREA_CHARASELECT, C.MATCH_TEMPLATE.CHARASEL_COLOR):
             #キャラクター選択画面
-            return C.SCREEN.SCRN_CHARASELECT
+            return C.STAT.SCRN_CHARASELECT
 
         if self.is_blackout():
             #暗転画面
-            return C.SCREEN.SCRN_BLACKOUT
+            return C.STAT.SCRN_BLACKOUT
 
-        return C.SCREEN.SCRN_OTHERS
+        return C.STAT.SCRN_OTHERS
 
 
     def get_screen2(self, prev_status: str) -> str:
@@ -571,18 +475,18 @@ class AnalyzeVideo:
 
         # 判定関数マッピング（すべて遅延評価）
         check_map = {
-            C.SCREEN.SCRN_MATCHVALID:   lambda: ret_duringmatch() == C.SCREEN.STATNO_MATCHVALID,
-            C.SCREEN.SCRN_MATCHINVALID: lambda: ret_duringmatch() == C.SCREEN.STATNO_MATCHINVALID,
-            C.SCREEN.SCRN_CHARASELECT:  lambda: self.is_charaselect(),
-            C.SCREEN.SCRN_BLACKOUT:     lambda: self.is_blackout()
+            C.STAT.SCRN_MATCHVALID:   lambda: ret_duringmatch() == C.STAT.STATNO_MATCHVALID,
+            C.STAT.SCRN_MATCHINVALID: lambda: ret_duringmatch() == C.STAT.STATNO_MATCHINVALID,
+            C.STAT.SCRN_CHARASELECT:  lambda: self.is_charaselect(),
+            C.STAT.SCRN_BLACKOUT:     lambda: self.is_blackout()
         }
 
         # 判定順の初期値（柔軟に順番を決める）
         default_order = [
-            C.SCREEN.SCRN_MATCHVALID,
-            C.SCREEN.SCRN_MATCHINVALID,
-            C.SCREEN.SCRN_CHARASELECT,
-            C.SCREEN.SCRN_BLACKOUT
+            C.STAT.SCRN_MATCHVALID,
+            C.STAT.SCRN_MATCHINVALID,
+            C.STAT.SCRN_CHARASELECT,
+            C.STAT.SCRN_BLACKOUT
         ]
 
         if prev_status in default_order:
@@ -596,7 +500,7 @@ class AnalyzeVideo:
             if check_map[status]():
                 return status
 
-        return C.SCREEN.SCRN_OTHERS
+        return C.STAT.SCRN_OTHERS
 
 # ここまで 画面ステータス関連
 

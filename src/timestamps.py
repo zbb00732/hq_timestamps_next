@@ -39,8 +39,8 @@ def main():
 
     # 処理データクラス初期化
     video_data = AnalyzedVideoData()
-    video_data.fps = analyze.get_fps()
     video_data.totalframes = analyze.get_totalframes()
+    video_data.set_fps( analyze.get_fps() )
 
     # 統計情報クラス初期化
     astats = AnalyzedStatistics()
@@ -58,9 +58,10 @@ def main():
     window = create_window()
 
     # テンポラリ変数初期化
-    screen = C.SCREEN.SCRN_OTHERS
+    screen = C.STAT.SCRN_OTHERS
     stat_text = 'その他　　　　　　　'
-    skip = int( video_data.fps * C.PROC_SPD.INTVL_CHARASELECT )
+
+    skip = video_data.skips[1]
 
     # 現在のフレーム番号
     frame_no = 0
@@ -106,26 +107,23 @@ def main():
         screen = analyze.get_screen()
         #screen = analyze.get_screen2(screen)
 
-        if screen == C.SCREEN.SCRN_CHARASELECT:
+        if screen == C.STAT.SCRN_CHARASELECT:
             # キャラクターセレクト画面
             # キャラクターセレクト画面である間は、「キャラ決定時のフレーム番号」を（現在のフレーム番号）で更新し続ける
             video_data.mdata.fno_eofcharasel = frame_no
-            video_data.flg.charaselect   = True
-            video_data.flg.matchstarted  = False
-            video_data.flg.lastoneflag   = False
-            video_data.flg.matchfinished = False
+            video_data.mstat = C.STAT.MSTAT_CHARASELECT
 
             skip, stat_text = get_nextstatus( screen, video_data, astats )
             continue
 
 
-        if screen == C.SCREEN.SCRN_MATCHINVALID:
+        if screen == C.STAT.SCRN_MATCHINVALID:
             # 対戦画面・試合開始後（両者とも0フラッグ）
-            if video_data.flg.charaselect or video_data.flg.matchfinished:
+            if video_data.mstat in ( C.STAT.MSTAT_CHARASELECT, C.STAT.MSTAT_MATFINISHED ):
                 # キャラクター選択画面 → ～ → 対戦画面・試合開始後　に遷移直後（新規試合）　または
                 # 試合終了　　　　　　 → ～ → 対戦画面・試合開始後　に遷移直後（リマッチ）
 
-                if   video_data.flg.charaselect:
+                if   video_data.mstat == C.STAT.MSTAT_CHARASELECT:
                     # キャラクター選択画面 → ～ → 対戦画面・試合開始後　に遷移直後（新規試合）
                     # キャラ決定時のフレーム番号でキャラクタ名（左右）を取得
                     # 画面切り替わり直前はキャラクタ名を判定しづらくなっているため、（キャラ決定時のフレーム番号 - 0.25秒）で判定する。
@@ -134,7 +132,7 @@ def main():
                     # 最大フラッグ数を取得
                     video_data.mdata.max_flags = analyze.get_maxflags()
                     print(f'\r{video_data.progress.txt}試合開始　　　　　　')
-                elif video_data.flg.matchfinished:
+                elif video_data.mstat == C.STAT.MSTAT_MATFINISHED:
                     # 試合終了　　　　　　 → ～ → 対戦画面・試合開始後　に遷移直後（リマッチ）
                     # キャラクタ名・最大フラッグ数は前の試合のものを引き継ぐ
                     print(f'\r{video_data.progress.txt}リマッチ　　　　　　')
@@ -149,36 +147,31 @@ def main():
                 timestamp = f'{ts_text} M{(match_no):02d}: Player1 - {name_l} vs Player2 - {name_r}'
                 print(timestamp)
 
-                video_data.flg.charaselect   = False
-                video_data.flg.matchstarted  = True
-                video_data.flg.lastoneflag = analyze.is_lastoneflag(video_data.mdata.max_flags)
-                video_data.flg.matchfinished = False
-
-            if video_data.mdata.max_flags < 1:
-                # max_flags の取得に失敗していた場合は取りなおす
-                video_data.mdata.max_flags = analyze.get_maxflags()
-                video_data.flg.lastoneflag = analyze.is_lastoneflag(video_data.mdata.max_flags)
+                video_data.mstat = C.STAT.MSTAT_MATSTARTED
+                if analyze.is_lastoneflag(video_data.mdata.max_flags):
+                    video_data.mstat = C.STAT.MSTAT_LASTONEFLAG
 
             skip, stat_text = get_nextstatus( screen, video_data, astats )
             continue
 
 
-        if screen == C.SCREEN.SCRN_MATCHVALID:
+        if screen == C.STAT.SCRN_MATCHVALID:
             # 対戦画面・試合成立後（1フラッグ以上取得）
 
-            if not video_data.flg.lastoneflag:
+            if video_data.mstat <  C.STAT.MSTAT_LASTONEFLAG:
+                # 直前の状態が残り1フラッグになる前だった場合
                 # 残り1フラッグかをチェック
-                video_data.flg.lastoneflag = analyze.is_lastoneflag(video_data.mdata.max_flags)
+                if analyze.is_lastoneflag(video_data.mdata.max_flags):
+                    video_data.mstat = C.STAT.MSTAT_LASTONEFLAG
 
-            if video_data.flg.lastoneflag:
-                # 残り1フラッグである場合
+            if video_data.mstat == C.STAT.MSTAT_LASTONEFLAG:
+                # 今の状態が残り1フラッグである場合
                 # 試合終了かをチェック
                 tmp_finished = analyze.is_matchfinished(video_data.mdata.max_flags)
-                if (tmp_finished != C.IMG_MATCH.WIN_N) and (not video_data.flg.matchfinished):
+                if tmp_finished != C.IMG_MATCH.WIN_N:
                     # 試合終了時の処理
                     end_match( analyze, video_data, tmp_finished )
-                    video_data.flg.matchstarted  = False
-                    video_data.flg.matchfinished = True
+                    video_data.mstat = C.STAT.MSTAT_MATFINISHED
 
             skip, stat_text = get_nextstatus( screen, video_data, astats )
             continue
@@ -203,8 +196,8 @@ def main():
         print('タイムスタンプをファイルに書き込みました。\n')
 
         # 処理結果、統計情報の出力
-        astats.endtime       = datetime.now()
-        astats_result = astats.get_result()
+        astats.endtime = datetime.now()
+        astats_result  = astats.get_result()
         astats.write_stats(astats_result)
         print(f'{astats_result}')
 
@@ -309,32 +302,30 @@ def get_nextstatus( screen: str, video_data: AnalyzedVideoData, astats: Analyzed
         video_data (AnalyzedVideoData): 各種状態フラグを参照するための引数
         astats (AnalyzedStatistics): 処理統計情報をカウントアップするための引数
     """
-    if   screen == C.SCREEN.SCRN_CHARASELECT:
+    if   screen == C.STAT.SCRN_CHARASELECT:
         stat_text = 'キャラクター選択画面'
-        skip_interval = C.PROC_SPD.INTVL_CHARASELECT
+        skip = video_data.skips[1]
         astats.cnt_charaselect   += 1
-    elif video_data.flg.matchfinished:
+    elif video_data.mstat == C.STAT.MSTAT_MATFINISHED:
         stat_text = '試合終了後　　　　　'
-        skip_interval = C.PROC_SPD.INTVL_MATCHFINISHED
+        skip = video_data.skips[2]
         astats.cnt_matchfinished += 1
-    elif video_data.flg.lastoneflag:
+    elif video_data.mstat == C.STAT.MSTAT_LASTONEFLAG:
         stat_text = '残り１フラッグ　　　'
-        skip_interval = C.PROC_SPD.INTVL_LASTONEFLAG
+        skip = video_data.skips[3]
         astats.cnt_lastoneflag   += 1
-    elif video_data.flg.matchstarted:
+    elif video_data.mstat == C.STAT.MSTAT_MATSTARTED:
         stat_text = '試合中　　　　　　　'
-        skip_interval = C.PROC_SPD.INTVL_MATCHSTARTED
+        skip = video_data.skips[4]
         astats.cnt_matstarted    += 1
-    elif screen == C.SCREEN.SCRN_BLACKOUT:
+    elif screen == C.STAT.SCRN_BLACKOUT:
         stat_text = '暗転画面　　　　　　'
-        skip_interval = C.PROC_SPD.INTVL_BLACKOUT
+        skip = video_data.skips[5]
         astats.cnt_blackout      += 1
     else:
         stat_text = 'その他　　　　　　　'
-        skip_interval = C.PROC_SPD.INTVL_OTHERS
+        skip = video_data.skips[0]
         astats.cnt_other         += 1
-
-    skip = int( video_data.fps * skip_interval )
 
     return skip, stat_text
 

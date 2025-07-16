@@ -102,16 +102,23 @@ class ProcessSpeed:
 class StateTransition:
     """状態遷移定数
     """
-    STATNO_MATCHVALID   = 2  # 対戦画面・試合成立後
-    STATNO_MATCHINVALID = 1  # 対戦画面・試合開始後
+    # 対戦画面の状況
+    STATNO_MATCHVALID   = 2  # 対戦画面・試合成立後（フラッグを１個以上獲得）
+    STATNO_MATCHINVALID = 1  # 対戦画面・試合開始後（フラッグが全て白）
     STATNO_ISNOTMATCH   = 0  # 対戦画面ではない
 
+    # 現在の画面
     SCRN_CHARASELECT    = 'charaselect'          # キャラクター選択画面
     SCRN_MATCHINVALID   = 'duringmatch_invalid'  # 対戦画面・試合開始後
     SCRN_MATCHVALID     = 'duringmatch_valid'    # 対戦画面・試合成立後
     SCRN_BLACKOUT       = 'blackout'             # 暗転
     SCRN_OTHERS         = 'nomatch'              # その他
 
+    # 試合進行状況ステータス
+    MSTAT_CHARASELECT   = 0  # キャラクター選択画面
+    MSTAT_MATSTARTED    = 1  # 対戦画面・試合開始後
+    MSTAT_LASTONEFLAG   = 2  # 対戦画面・残り１フラッグ
+    MSTAT_MATFINISHED   = 3  # 試合終了後
 
 
 @dataclass(frozen=True)
@@ -124,10 +131,10 @@ class Constants:
     MATCH_TEMPLATE = MatchTemplate()    # ロード画面など画像管理定数
     IMG_MATCH      = ImageMatching()    # 画像照合定数
     PROC_SPD       = ProcessSpeed()     # 処理速度関連定数
-    SCREEN         = StateTransition()  # 画面状態定数
+    STAT           = StateTransition()  # 画面状態定数
 
-    ONCLICK_CANCEL = 'Cancel' # キャンセルイベント
-    CANCEL_KEY = '-CANCEL-'   # キャンセルボタンのキー
+    ONCLICK_CANCEL = 'Cancel'     # キャンセルイベント
+    CANCEL_KEY     = '-CANCEL-'   # キャンセルボタンのキー
 
     OUTPUT_FILE = 'timestamps.txt' # タイムスタンプ出力ファイル名
     STATIS_FILE = 'statistics.txt' # 処理結果統計情報出力ファイル名
