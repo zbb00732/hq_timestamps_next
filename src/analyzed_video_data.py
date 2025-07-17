@@ -45,7 +45,7 @@ class AnalyzedVideoData:
 
 
     def ts_format(self, frame_no: int) -> str:
-        """フレーム番号から h:mm:dd の書式の文字列を返す
+        """フレーム番号から h:mm:ss の書式の文字列を返す
         Args:
             frame_no (int): フレーム番号
         Returns:
@@ -60,7 +60,7 @@ class AnalyzedVideoData:
         s =  time_in_seconds          %  60
 
         # フォーマットされた文字列を返す
-        return f"{h:d}:{m:02d}:{s:02d}"
+        return f'{h:d}:{m:02d}:{s:02d}'
 
 
     def set_progress(self, frame_no: int) -> None:

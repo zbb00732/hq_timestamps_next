@@ -44,15 +44,13 @@ def main():
 
     # 統計情報クラス初期化
     astats = AnalyzedStatistics()
-    astats.file_name = os.path.basename(file_path)
-    astats.totalframes = video_data.totalframes
-    astats.timeofvideo = video_data.ts_format(video_data.totalframes)
-    astats.starttime = datetime.now()
+    astats.file_name   = os.path.basename(file_path)
+    astats.totalframes = analyze.get_totalframes()
+    astats.fps         = analyze.get_fps()
+    astats.starttime   = datetime.now()
 
     print(f'\n処理開始：{astats.starttime.strftime("%Y-%m-%d %H:%M:%S")}')
-    print(f'動画のフレームレート：{video_data.fps}')
-#    print(f'動画の総フレーム数: {video_data.totalframes}')
-    print(f'動画時間：  {astats.timeofvideo}')
+    print(f'動画時間：  {astats.get_timeofvideo()} / {astats.fps}fps')
 
     # ウィンドウの生成
     window = create_window()
