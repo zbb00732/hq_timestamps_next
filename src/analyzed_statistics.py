@@ -73,8 +73,8 @@ class AnalyzedStatistics:
         stats_text += f'処理開始：{self.starttime.strftime("%Y-%m-%d %H:%M:%S")}\n'
         stats_text += f'処理終了：{self.endtime.strftime("%Y-%m-%d %H:%M:%S")}\n'
         ########################：YYYY-mm-dd HH:MM:SS
-        stats_text += f'所要時間：            {self.ts_format(elaps_seconds)}\n'
-        stats_text += f'動画時間：            {self.get_timeofvideo()       } / {self.fps}fps\n\n'
+        stats_text += f'所要時間：            {self.ts_format(elaps_seconds)} ({(elaps_seconds / total_seconds * 100):5.1f}%)\n'
+        stats_text += f'動画時間：            {self.ts_format(total_seconds)} / {self.fps}fps\n\n'
 
         stats_text +=  '処理結果統計\n'
         stats_text += f'キャラ選択：{self.cnt_charaselect  :7d} ({(self.cnt_charaselect   / cnt_total * 100):5.1f}%)\n'
