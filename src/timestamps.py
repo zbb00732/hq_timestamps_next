@@ -240,13 +240,7 @@ def get_file_path() -> str:
         str: 選択されたファイルのパス
     """
 
-    if getattr(sys, 'frozen', False):
-        exe_dir = os.path.dirname(sys.executable)
-    else:
-        exe_dir = os.getcwd()
-
     file_path = filedialog.askopenfilename(
-        initialdir=exe_dir,
         title='動画ファイルを選択',
         filetypes=[('すべてのファイル', '*.*')],
     )
