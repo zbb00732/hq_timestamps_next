@@ -44,7 +44,7 @@ class AnalyzeVideo:
         if not self.capture.isOpened():
             return False
 
-        # 動画のフレーム数を取得
+        # 動画の総フレーム数を取得
         self.totalframes = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # 動画のフレームレートを取得
@@ -108,6 +108,10 @@ class AnalyzeVideo:
         Returns:
             bool: 指定したフレームに飛べればTrue、そうでなければFalse
         """
+        # 動画の総フレーム数を超えていたらエラー
+        if target_fno > self.totalframes:
+            return False
+
         # キャッシュにあれば即利用
         if target_fno in self.frame_cache:
             self.frame = self.frame_cache[target_fno]
